@@ -1,0 +1,195 @@
+import { DatabaseSync } from 'node:sqlite';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Ensure data directory exists
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const DB_PATH = path.join(DATA_DIR, 'moneymanager.db');
+
+export const db = new DatabaseSync(DB_PATH);
+
+// Enable WAL mode and foreign keys for performance and reliability
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA foreign_keys = ON;
+`);
+
+export function initDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL, -- 'petrol', 'spending', 'savings', 'custom'
+      balance_paise INTEGER NOT NULL DEFAULT 0,
+      color TEXT NOT NULL DEFAULT '#0ea5e9',
+      icon TEXT NOT NULL DEFAULT 'Wallet',
+      is_system INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'expense', -- 'expense', 'income'
+      icon TEXT NOT NULL DEFAULT 'Tag',
+      color TEXT NOT NULL DEFAULT '#64748b',
+      is_system INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS budgets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      linked_account_id TEXT,
+      category_id TEXT,
+      amount_paise INTEGER NOT NULL,
+      period TEXT NOT NULL DEFAULT 'monthly', -- 'monthly', 'weekly', 'custom'
+      start_date TEXT NOT NULL,
+      end_date TEXT,
+      is_paused INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (linked_account_id) REFERENCES accounts(id) ON DELETE SET NULL,
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS incomes (
+      id TEXT PRIMARY KEY,
+      amount_paise INTEGER NOT NULL,
+      source TEXT NOT NULL,
+      date TEXT NOT NULL,
+      description TEXT,
+      allocated_paise INTEGER NOT NULL DEFAULT 0,
+      unallocated_paise INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS income_allocations (
+      id TEXT PRIMARY KEY,
+      income_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      amount_paise INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (income_id) REFERENCES incomes(id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS transfers (
+      id TEXT PRIMARY KEY,
+      from_account_id TEXT NOT NULL,
+      to_account_id TEXT NOT NULL,
+      amount_paise INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (from_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL, -- 'expense', 'income_allocation', 'transfer_out', 'transfer_in'
+      account_id TEXT NOT NULL,
+      amount_paise INTEGER NOT NULL,
+      category_id TEXT,
+      date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      merchant TEXT,
+      notes TEXT,
+      related_transfer_id TEXT,
+      related_income_id TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (related_transfer_id) REFERENCES transfers(id) ON DELETE CASCADE,
+      FOREIGN KEY (related_income_id) REFERENCES incomes(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS petrol_logs (
+      id TEXT PRIMARY KEY,
+      transaction_id TEXT NOT NULL,
+      expense_paise INTEGER NOT NULL,
+      litres REAL,
+      price_per_litre REAL,
+      odometer REAL,
+      fuel_station TEXT,
+      date TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+
+  // Seed default categories if empty
+  const countCategoriesStmt = db.prepare('SELECT COUNT(*) as count FROM categories');
+  const catResult = countCategoriesStmt.get() as { count: number };
+  if (catResult.count === 0) {
+    const defaultCategories = [
+      { id: 'cat-petrol', name: 'Petrol', type: 'expense', icon: 'Fuel', color: '#f59e0b', is_system: 1 },
+      { id: 'cat-food', name: 'Food & Dining', type: 'expense', icon: 'Utensils', color: '#ef4444', is_system: 1 },
+      { id: 'cat-shopping', name: 'Shopping', type: 'expense', icon: 'ShoppingBag', color: '#ec4899', is_system: 1 },
+      { id: 'cat-travel', name: 'Travel & Commute', type: 'expense', icon: 'Bus', color: '#8b5cf6', is_system: 1 },
+      { id: 'cat-education', name: 'Education & College', type: 'expense', icon: 'GraduationCap', color: '#3b82f6', is_system: 1 },
+      { id: 'cat-subscriptions', name: 'Subscriptions', type: 'expense', icon: 'Tv', color: '#6366f1', is_system: 1 },
+      { id: 'cat-services', name: 'Services', type: 'expense', icon: 'Wrench', color: '#14b8a6', is_system: 1 },
+      { id: 'cat-health', name: 'Health & Personal Care', type: 'expense', icon: 'HeartPulse', color: '#10b981', is_system: 1 },
+      { id: 'cat-other', name: 'Other Expenses', type: 'expense', icon: 'MoreHorizontal', color: '#64748b', is_system: 1 },
+      { id: 'cat-inc-it', name: 'IT Work', type: 'income', icon: 'Laptop', color: '#10b981', is_system: 1 },
+      { id: 'cat-inc-pocket', name: 'Pocket Money', type: 'income', icon: 'Coins', color: '#06b6d4', is_system: 1 },
+      { id: 'cat-inc-family', name: 'Family', type: 'income', icon: 'Users', color: '#8b5cf6', is_system: 1 },
+      { id: 'cat-inc-other', name: 'Other Income', type: 'income', icon: 'PlusCircle', color: '#14b8a6', is_system: 1 }
+    ];
+
+    const insertCat = db.prepare(`
+      INSERT INTO categories (id, name, type, icon, color, is_system)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const c of defaultCategories) {
+      insertCat.run(c.id, c.name, c.type, c.icon, c.color, c.is_system);
+    }
+  }
+
+  // Seed default settings if empty
+  const countSettingsStmt = db.prepare('SELECT COUNT(*) as count FROM settings');
+  const settingsResult = countSettingsStmt.get() as { count: number };
+  if (settingsResult.count === 0) {
+    const insertSetting = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+    insertSetting.run('petrol_monthly_budget_paise', '200000'); // ₹2,000 = 200,000 paise
+    insertSetting.run('allow_overdraft', 'false');
+    insertSetting.run('currency_symbol', '₹');
+    insertSetting.run('date_format', 'DD/MM/YYYY');
+    insertSetting.run('is_onboarded', 'false');
+  }
+
+  // Seed default initial 3 accounts if empty
+  const countAccountsStmt = db.prepare('SELECT COUNT(*) as count FROM accounts');
+  const accResult = countAccountsStmt.get() as { count: number };
+  if (accResult.count === 0) {
+    const now = new Date().toISOString();
+    const insertAccount = db.prepare(`
+      INSERT INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    // 1. College Petrol
+    insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, now);
+    // 2. Personal Spending
+    insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, now);
+    // 3. Savings
+    insertAccount.run('acc-savings', 'Savings', 'savings', 0, '#10b981', 'PiggyBank', 1, now);
+
+    // Create default College Petrol budget: ₹2,000/month
+    const insertBudget = db.prepare(`
+      INSERT INTO budgets (id, name, linked_account_id, category_id, amount_paise, period, start_date, is_paused, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    insertBudget.run('bgt-college-petrol', 'College Petrol Monthly Budget', 'acc-petrol', 'cat-petrol', 200000, 'monthly', firstDayOfMonth, 0, now);
+  }
+}
