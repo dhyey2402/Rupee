@@ -42,6 +42,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   const [successSaved, setSuccessSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const transferableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
+
   useEffect(() => {
     if (isOpen) {
       setAmountStr('');
@@ -54,22 +56,21 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       if (initialFromAccountId) {
         setFromAccountId(initialFromAccountId);
       } else {
-        const spending = accounts.find(a => a.type === 'spending');
-        setFromAccountId(spending ? spending.id : accounts[0]?.id || '');
+        const spending = transferableAccounts.find(a => a.type === 'spending');
+        setFromAccountId(spending ? spending.id : transferableAccounts[0]?.id || '');
       }
 
       if (initialToAccountId) {
         setToAccountId(initialToAccountId);
       } else {
-        const petrol = accounts.find(a => a.type === 'petrol');
-        const savings = accounts.find(a => a.type === 'savings');
-        setToAccountId(petrol ? petrol.id : (savings ? savings.id : accounts[1]?.id || ''));
+        const petrol = transferableAccounts.find(a => a.type === 'petrol');
+        setToAccountId(petrol ? petrol.id : transferableAccounts[1]?.id || '');
       }
     }
   }, [isOpen, initialFromAccountId, initialToAccountId, accounts]);
 
-  const fromAccount = accounts.find(a => a.id === fromAccountId);
-  const toAccount = accounts.find(a => a.id === toAccountId);
+  const fromAccount = transferableAccounts.find(a => a.id === fromAccountId);
+  const toAccount = transferableAccounts.find(a => a.id === toAccountId);
   const amountPaise = inrToPaise(amountStr);
 
   const handleSwap = () => {
@@ -222,7 +223,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   onChange={e => setFromAccountId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#D1D5DB] bg-white text-xs font-bold text-[#111318] outline-none"
                 >
-                  {accounts.map(acc => (
+                  {transferableAccounts.map(acc => (
                     <option key={acc.id} value={acc.id}>
                       {acc.name} — {formatINR(acc.balance_paise)}
                     </option>
@@ -257,7 +258,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   onChange={e => setToAccountId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#D1D5DB] bg-white text-xs font-bold text-[#111318] outline-none"
                 >
-                  {accounts
+                  {transferableAccounts
                     .filter(acc => acc.id !== fromAccountId)
                     .map(acc => (
                       <option key={acc.id} value={acc.id}>

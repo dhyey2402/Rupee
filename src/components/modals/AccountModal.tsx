@@ -30,11 +30,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   onSuccess,
 }) => {
   const [name, setName] = useState('');
-  const [type, setType] = useState<'petrol' | 'spending' | 'savings' | 'custom'>('custom');
+  const [type, setType] = useState<'petrol' | 'spending' | 'custom'>('custom');
   const [color, setColor] = useState('#065F46');
   const [icon, setIcon] = useState('Wallet');
   const [initialBalanceStr, setInitialBalanceStr] = useState('');
-  const [budgetStr, setBudgetStr] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,18 +42,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     if (isOpen) {
       if (account) {
         setName(account.name);
-        setType(account.type);
+        setType(
+          (account.type === 'savings' || account.type === 'archived_savings')
+            ? 'custom'
+            : (account.type as 'petrol' | 'spending' | 'custom')
+        );
         setColor(account.color);
         setIcon(account.icon);
         setInitialBalanceStr('');
-        setBudgetStr(account.budget ? (account.budget.amount_paise / 100).toString() : '');
       } else {
         setName('');
         setType('custom');
         setColor('#065F46');
         setIcon('Wallet');
         setInitialBalanceStr('0');
-        setBudgetStr('');
       }
       setError(null);
     }
@@ -72,8 +73,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     setLoading(true);
     setError(null);
 
-    const budgetPaise = budgetStr ? inrToPaise(budgetStr) : undefined;
-
     try {
       if (account) {
         const res = await fetch(`/api/accounts/${account.id}`, {
@@ -83,7 +82,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             name: name.trim(),
             color,
             icon,
-            monthlyBudgetPaise: budgetPaise !== undefined ? budgetPaise : undefined,
           }),
         });
         const data = await res.json();
@@ -99,7 +97,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             color,
             icon,
             initialBalancePaise: initialPaise,
-            budgetPaise,
           }),
         });
         const data = await res.json();
@@ -166,10 +163,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     onChange={e => setType(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl border border-[#D1D5DB] bg-white text-xs font-medium text-[#111318] outline-none"
                   >
-                    <option value="custom">Standard Bucket</option>
-                    <option value="spending">Daily Spending</option>
-                    <option value="savings">Untouchable Savings</option>
-                    <option value="petrol">Petrol Bucket</option>
+                    <option value="custom">Standard Account</option>
+                    <option value="spending">Personal Spending</option>
+                    <option value="petrol">College Petrol</option>
                   </select>
                 </div>
                 <div>
@@ -187,25 +183,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 </div>
               </div>
             )}
-
-            <div>
-              <label className="block text-xs font-semibold text-[#374151] mb-1">
-                Monthly Spending Limit (Optional ₹)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#9CA3AF]">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 2000"
-                  value={budgetStr}
-                  onChange={e => setBudgetStr(e.target.value)}
-                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-[#D1D5DB] text-xs font-semibold text-[#111318] tabular-nums outline-none"
-                />
-              </div>
-            </div>
 
             {/* Color Palette */}
             <div>

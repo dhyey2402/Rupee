@@ -82,15 +82,16 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setSelectedCategoryId(defaultCat);
 
       // Default account
+      const spendableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
       if (preselectedAccountId) {
         setSelectedAccountId(preselectedAccountId);
-        const acc = accounts.find(a => a.id === preselectedAccountId);
+        const acc = spendableAccounts.find(a => a.id === preselectedAccountId);
         if (acc?.type === 'petrol') {
           setIsPetrolCategory(true);
         }
       } else {
-        const spendingAcc = accounts.find(a => a.type === 'spending');
-        setSelectedAccountId(spendingAcc ? spendingAcc.id : accounts[0]?.id || '');
+        const spendingAcc = spendableAccounts.find(a => a.type === 'spending');
+        setSelectedAccountId(spendingAcc ? spendingAcc.id : spendableAccounts[0]?.id || '');
       }
     }
   }, [isOpen, preselectedAccountId, accounts, categories]);
@@ -279,51 +280,51 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               <label className="block text-xs font-semibold text-[#374151] mb-1.5">
                 Deduct From Account
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {accounts.map(acc => {
-                  const isSelected = selectedAccountId === acc.id;
-                  const isPetrol = acc.type === 'petrol';
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {accounts
+                  .filter(a => a.type !== 'savings' && a.type !== 'archived_savings')
+                  .map(acc => {
+                    const isSelected = selectedAccountId === acc.id;
+                    const isPetrol = acc.type === 'petrol';
 
-                  return (
-                    <button
-                      key={acc.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAccountId(acc.id);
-                        if (isPetrol) setIsPetrolCategory(true);
-                      }}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                        isSelected
-                          ? 'border-[#065F46] bg-[#F0FDF4] ring-1 ring-[#065F46]'
-                          : 'border-[#E5E7EB] bg-white hover:border-[#D1D5DB]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold text-[#111318] truncate">
-                          {acc.name}
-                        </span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#065F46]" />}
-                      </div>
-
-                      <div className="space-y-0.5 text-[10px]">
-                        <div className="flex justify-between text-[#6B7280]">
-                          <span>Balance:</span>
-                          <span className="font-bold tabular-nums text-[#111318]">
-                            {formatINR(acc.balance_paise)}
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccountId(acc.id);
+                          if (isPetrol) setIsPetrolCategory(true);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-[#065F46] bg-[#F0FDF4] ring-1 ring-[#065F46]'
+                            : 'border-[#E5E7EB] bg-white hover:border-[#D1D5DB]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-[#111318] truncate">
+                            {acc.name}
                           </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#065F46]" />}
                         </div>
-                        {acc.budget && (
-                          <div className="flex justify-between text-[#B45309]">
-                            <span>Budget left:</span>
-                            <span className="font-semibold tabular-nums">
-                              {formatINR(acc.budget.remaining_paise || 0)}
+
+                        <div className="space-y-0.5 text-[10px]">
+                          <div className="flex justify-between text-[#6B7280]">
+                            <span>Available:</span>
+                            <span className="font-bold tabular-nums text-[#111318]">
+                              {formatINR(acc.balance_paise)}
                             </span>
                           </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                          <div className="flex justify-between text-[#6B7280]">
+                            <span>Spent this month:</span>
+                            <span className="font-semibold tabular-nums text-[#B45309]">
+                              {formatINR(acc.monthly_spent_paise || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
 

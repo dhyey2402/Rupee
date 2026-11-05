@@ -125,6 +125,17 @@ export function initDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS savings_records (
+      id TEXT PRIMARY KEY,
+      amount_paise INTEGER NOT NULL,
+      source_account_id TEXT,
+      source_account_name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (source_account_id) REFERENCES accounts(id) ON DELETE SET NULL
+    );
   `);
 
   // Seed default categories if empty
@@ -161,15 +172,14 @@ export function initDatabase() {
   const settingsResult = countSettingsStmt.get() as { count: number };
   if (settingsResult.count === 0) {
     const insertSetting = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-    insertSetting.run('petrol_monthly_budget_paise', '200000'); // ₹2,000 = 200,000 paise
     insertSetting.run('allow_overdraft', 'false');
     insertSetting.run('currency_symbol', '₹');
     insertSetting.run('date_format', 'DD/MM/YYYY');
-    insertSetting.run('is_onboarded', 'false');
+    insertSetting.run('is_onboarded', 'true');
   }
 
-  // Seed default initial 3 accounts if empty
-  const countAccountsStmt = db.prepare('SELECT COUNT(*) as count FROM accounts');
+  // Seed default primary financial accounts if empty
+  const countAccountsStmt = db.prepare("SELECT COUNT(*) as count FROM accounts WHERE type IN ('petrol', 'spending')");
   const accResult = countAccountsStmt.get() as { count: number };
   if (accResult.count === 0) {
     const now = new Date().toISOString();
@@ -181,15 +191,39 @@ export function initDatabase() {
     insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, now);
     // 2. Personal Spending
     insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, now);
-    // 3. Savings
-    insertAccount.run('acc-savings', 'Savings', 'savings', 0, '#10b981', 'PiggyBank', 1, now);
+  }
 
-    // Create default College Petrol budget: ₹2,000/month
-    const insertBudget = db.prepare(`
-      INSERT INTO budgets (id, name, linked_account_id, category_id, amount_paise, period, start_date, is_paused, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-    insertBudget.run('bgt-college-petrol', 'College Petrol Monthly Budget', 'acc-petrol', 'cat-petrol', 200000, 'monthly', firstDayOfMonth, 0, now);
+  // Safe Migration for existing data:
+  // 1. Remove obsolete petrol budget setting
+  db.prepare("DELETE FROM settings WHERE key = 'petrol_monthly_budget_paise'").run();
+
+  // 2. Remove any spending limit or monthly budget on College Petrol or Personal Spending
+  db.prepare("DELETE FROM budgets WHERE linked_account_id IN ('acc-petrol', 'acc-spending') OR id = 'bgt-college-petrol'").run();
+
+  // 3. Migrate any existing Savings financial account to dedicated savings_records
+  const existingSavingsAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc-savings' OR type = 'savings'").get() as any;
+  if (existingSavingsAcc) {
+    if (existingSavingsAcc.balance_paise > 0) {
+      const existingMigrated = db.prepare("SELECT COUNT(*) as count FROM savings_records WHERE id = 'sav-migrated-initial'").get() as any;
+      if (existingMigrated.count === 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date().toISOString();
+        db.prepare(`
+          INSERT INTO savings_records (id, amount_paise, source_account_id, source_account_name, date, notes, created_at)
+          VALUES ('sav-migrated-initial', ?, NULL, 'Initial Savings', ?, 'Migrated from previous savings account', ?)
+        `).run(existingSavingsAcc.balance_paise, today, now);
+      }
+    }
+
+    // Check if any transactions or transfers reference this account
+    const txCount = (db.prepare('SELECT COUNT(*) as count FROM transactions WHERE account_id = ?').get(existingSavingsAcc.id) as any).count;
+    const trfCount = (db.prepare('SELECT COUNT(*) as count FROM transfers WHERE from_account_id = ? OR to_account_id = ?').get(existingSavingsAcc.id, existingSavingsAcc.id) as any).count;
+
+    if (txCount === 0 && trfCount === 0) {
+      db.prepare('DELETE FROM accounts WHERE id = ?').run(existingSavingsAcc.id);
+    } else {
+      // Archive account to preserve historical ledger FKs without displaying it as an active financial account
+      db.prepare("UPDATE accounts SET type = 'archived_savings' WHERE id = ?").run(existingSavingsAcc.id);
+    }
   }
 }

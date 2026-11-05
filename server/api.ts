@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from './db.js';
+import { ai, getLiveFinancialContext, PERSONAS } from './gemini.js';
 
 export const apiRouter = Router();
 
@@ -37,14 +38,14 @@ apiRouter.get('/bootstrap', (req, res) => {
     const monthQuery = typeof req.query.month === 'string' ? req.query.month : undefined;
     const { startDate, endDate, monthKey } = getMonthBounds(monthQuery);
 
-    // Accounts
-    const accounts = db.prepare('SELECT * FROM accounts ORDER BY created_at ASC').all() as any[];
+    // Accounts (only active financial accounts: College Petrol, Personal Spending, and custom)
+    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('petrol', 'spending', 'custom') ORDER BY created_at ASC").all() as any[];
 
     // Categories
     const categories = db.prepare('SELECT * FROM categories ORDER BY type, name ASC').all() as any[];
 
-    // Budgets
-    const budgets = db.prepare('SELECT * FROM budgets WHERE is_paused = 0').all() as any[];
+    // Budgets (excluding any legacy account spending limits)
+    const budgets = db.prepare("SELECT * FROM budgets WHERE is_paused = 0 AND (linked_account_id IS NULL OR linked_account_id NOT IN ('acc-petrol', 'acc-spending'))").all() as any[];
 
     // Settings
     const settingsRows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
@@ -74,29 +75,34 @@ apiRouter.get('/bootstrap', (req, res) => {
     `);
     const monthlyExpensePaise = (monthlyExpenseStmt.get(startDate, endDate) as any).total || 0;
 
-    // Total money across all accounts:
-    const totalBalanceStmt = db.prepare('SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts');
+    // Total money across all financial accounts:
+    const totalBalanceStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type IN ('petrol', 'spending', 'custom')");
     const totalAccountBalancePaise = (totalBalanceStmt.get() as any).total || 0;
     const totalMoneyPaise = totalAccountBalancePaise + unallocatedPaise;
 
-    // Savings balance:
-    const savingsStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type = 'savings'");
+    // Savings from dedicated savings_records:
+    const savingsStmt = db.prepare('SELECT COALESCE(SUM(amount_paise), 0) as total FROM savings_records');
     const totalSavingsPaise = (savingsStmt.get() as any).total || 0;
 
-    // Available spending money (accounts other than savings)
-    const availableSpendingPaise = totalAccountBalancePaise - totalSavingsPaise;
+    const savingsByAccountStmt = db.prepare(`
+      SELECT source_account_name, COALESCE(SUM(amount_paise), 0) as total_paise, COUNT(*) as count
+      FROM savings_records
+      GROUP BY source_account_name
+      ORDER BY total_paise DESC
+    `);
+    const savingsByAccount = savingsByAccountStmt.all() as any[];
+    const savingsRecords = db.prepare('SELECT * FROM savings_records ORDER BY date DESC, created_at DESC LIMIT 20').all() as any[];
 
-    // Calculate budget utilization for accounts and categories
+    // Primary account balances
+    const spendingAcc = accounts.find((a: any) => a.type === 'spending');
+    const petrolAcc = accounts.find((a: any) => a.type === 'petrol');
+    const availableSpendingPaise = spendingAcc ? spendingAcc.balance_paise : 0;
+    const availablePetrolPaise = petrolAcc ? petrolAcc.balance_paise : 0;
+
+    // Calculate budget utilization for categories if any exist
     const budgetListWithStats = budgets.map((b: any) => {
       let spentPaise = 0;
-      if (b.linked_account_id) {
-        const stmt = db.prepare(`
-          SELECT COALESCE(SUM(amount_paise), 0) as spent
-          FROM transactions
-          WHERE type = 'expense' AND account_id = ? AND date >= ? AND date <= ?
-        `);
-        spentPaise = (stmt.get(b.linked_account_id, startDate, endDate) as any).spent || 0;
-      } else if (b.category_id) {
+      if (b.category_id) {
         const stmt = db.prepare(`
           SELECT COALESCE(SUM(amount_paise), 0) as spent
           FROM transactions
@@ -120,10 +126,11 @@ apiRouter.get('/bootstrap', (req, res) => {
     });
 
     // Account stats for this month
+    // Both College Petrol and Personal Spending have the same 3 financial metrics:
+    // 1. Current Balance (balance_paise)
+    // 2. Spent This Month (monthly_spent_paise)
+    // 3. Available Money (available_money_paise = balance_paise)
     const accountsWithStats = accounts.map((acc: any) => {
-      // Find budget for this account if any
-      const budget = budgetListWithStats.find((b: any) => b.linked_account_id === acc.id);
-      
       // Calculate monthly spent
       const spentStmt = db.prepare(`
         SELECT COALESCE(SUM(amount_paise), 0) as spent
@@ -135,7 +142,8 @@ apiRouter.get('/bootstrap', (req, res) => {
       return {
         ...acc,
         monthly_spent_paise: spentPaise,
-        budget: budget || null,
+        available_money_paise: acc.balance_paise,
+        budget: null, // Strictly no monthly spending limit or budget progress
       };
     });
 
@@ -161,7 +169,7 @@ apiRouter.get('/bootstrap', (req, res) => {
     `);
     const categoryBreakdown = categoryBreakdownStmt.all(startDate, endDate);
 
-    // Petrol specific monthly summary
+    // Petrol specific monthly summary (no spending limits or budget pace)
     const petrolSpentStmt = db.prepare(`
       SELECT COALESCE(SUM(t.amount_paise), 0) as spent, COUNT(t.id) as count
       FROM transactions t
@@ -186,8 +194,14 @@ apiRouter.get('/bootstrap', (req, res) => {
         unallocatedPaise,
         totalSavingsPaise,
         availableSpendingPaise,
+        availablePetrolPaise,
         monthlyIncomePaise,
         monthlyExpensePaise,
+      },
+      savings: {
+        totalSavedPaise: totalSavingsPaise,
+        byAccount: savingsByAccount,
+        records: savingsRecords,
       },
       accounts: accountsWithStats,
       budgets: budgetListWithStats,
@@ -212,7 +226,7 @@ apiRouter.get('/bootstrap', (req, res) => {
 // -------------------------------------------------------------
 apiRouter.get('/accounts', (req, res) => {
   try {
-    const accounts = db.prepare('SELECT * FROM accounts ORDER BY created_at ASC').all();
+    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('petrol', 'spending', 'custom') ORDER BY created_at ASC").all();
     res.json(accounts);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -221,9 +235,13 @@ apiRouter.get('/accounts', (req, res) => {
 
 apiRouter.post('/accounts', (req, res) => {
   try {
-    const { name, type, color, icon, initialBalancePaise = 0, budgetPaise } = req.body;
+    const { name, type, color, icon, initialBalancePaise = 0 } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Account name is required' });
+    }
+
+    if (type === 'savings') {
+      return res.status(400).json({ error: 'Savings is a dedicated reference section, not a financial account' });
     }
 
     const id = `acc-${Date.now()}`;
@@ -238,25 +256,11 @@ apiRouter.post('/accounts', (req, res) => {
       `).run(id, name.trim(), type || 'custom', balance, color || '#6366f1', icon || 'Wallet', now);
 
       if (balance > 0) {
-        // Record starting balance transaction as income allocation
-        const incId = `inc-init-${Date.now()}`;
+        // Record starting balance transaction as direct deposit
         db.prepare(`
-          INSERT INTO incomes (id, amount_paise, source, date, description, allocated_paise, unallocated_paise, created_at)
-          VALUES (?, ?, 'Initial Balance', ?, 'Initial Account Balance', ?, 0, ?)
-        `).run(incId, balance, now.split('T')[0], balance, now);
-
-        db.prepare(`
-          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_income_id, created_at)
-          VALUES (?, 'income_allocation', ?, ?, ?, 'Initial Balance', ?, ?)
-        `).run(`tx-init-${Date.now()}`, id, balance, now.split('T')[0], incId, now);
-      }
-
-      if (budgetPaise && budgetPaise > 0) {
-        const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-        db.prepare(`
-          INSERT INTO budgets (id, name, linked_account_id, amount_paise, period, start_date, is_paused, created_at)
-          VALUES (?, ?, ?, ?, 'monthly', ?, 0, ?)
-        `).run(`bgt-${Date.now()}`, `${name.trim()} Monthly Budget`, id, parseInt(budgetPaise, 10), firstDay, now);
+          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, created_at)
+          VALUES (?, 'direct_deposit', ?, ?, ?, 'Initial Balance', ?)
+        `).run(`tx-init-${Date.now()}`, id, balance, now.split('T')[0], now);
       }
 
       db.exec('COMMIT');
@@ -273,7 +277,7 @@ apiRouter.post('/accounts', (req, res) => {
 apiRouter.put('/accounts/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, color, icon, monthlyBudgetPaise } = req.body;
+    const { name, color, icon } = req.body;
     
     db.exec('BEGIN TRANSACTION');
     try {
@@ -284,23 +288,6 @@ apiRouter.put('/accounts/:id', (req, res) => {
             icon = COALESCE(?, icon)
         WHERE id = ?
       `).run(name?.trim() ?? null, color ?? null, icon ?? null, id);
-
-      if (monthlyBudgetPaise !== undefined) {
-        const existingBudget = db.prepare('SELECT id FROM budgets WHERE linked_account_id = ?').get(id) as any;
-        if (existingBudget) {
-          if (monthlyBudgetPaise > 0) {
-            db.prepare('UPDATE budgets SET amount_paise = ? WHERE id = ?').run(parseInt(monthlyBudgetPaise, 10), existingBudget.id);
-          } else {
-            db.prepare('DELETE FROM budgets WHERE id = ?').run(existingBudget.id);
-          }
-        } else if (monthlyBudgetPaise > 0) {
-          const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-          db.prepare(`
-            INSERT INTO budgets (id, name, linked_account_id, amount_paise, period, start_date, is_paused, created_at)
-            VALUES (?, ?, ?, ?, 'monthly', ?, 0, ?)
-          `).run(`bgt-${Date.now()}`, `${name || 'Account'} Monthly Budget`, id, parseInt(monthlyBudgetPaise, 10), firstDay, new Date().toISOString());
-        }
-      }
 
       db.exec('COMMIT');
       res.json({ success: true });
@@ -321,7 +308,7 @@ apiRouter.delete('/accounts/:id', (req, res) => {
       return res.status(404).json({ error: 'Account not found' });
     }
     if (account.is_system) {
-      return res.status(400).json({ error: 'System accounts (College Petrol, Personal Spending, Savings) cannot be deleted' });
+      return res.status(400).json({ error: 'Primary accounts (College Petrol and Personal Spending) cannot be deleted' });
     }
     if (account.balance_paise > 0) {
       return res.status(400).json({ error: `Cannot delete account with remaining balance of ₹${(account.balance_paise / 100).toFixed(2)}. Please transfer or spend the balance first.` });
@@ -337,6 +324,188 @@ apiRouter.delete('/accounts/:id', (req, res) => {
       db.exec('ROLLBACK');
       throw e;
     }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Close out allocation for an account: sweeps all unused allocated money to Savings
+apiRouter.post('/accounts/:id/close-allocation', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes, date } = req.body;
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    if (!account) {
+      return res.status(404).json({ error: 'Financial account not found' });
+    }
+    if (account.balance_paise <= 0) {
+      return res.status(400).json({ error: `Cannot close allocation: ${account.name} has no unused balance remaining to save.` });
+    }
+
+    const unusedPaise = account.balance_paise;
+    const today = date || new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+    const savId = `sav-${Date.now()}`;
+    const txId = `tx-sav-${Date.now()}`;
+    const defaultNote = notes?.trim() || `Unused ${account.name} allocation swept to savings`;
+
+    db.exec('BEGIN TRANSACTION');
+    try {
+      // 1. Reset account balance to 0
+      db.prepare('UPDATE accounts SET balance_paise = 0 WHERE id = ?').run(id);
+
+      // 2. Insert into savings_records (adds to Savings total)
+      db.prepare(`
+        INSERT INTO savings_records (id, amount_paise, source_account_id, source_account_name, date, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(savId, unusedPaise, account.id, account.name, today, defaultNote, nowIso);
+
+      // 3. Record transaction on account ledger as savings_sweep (NOT an expense, NOT income)
+      db.prepare(`
+        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, notes, created_at)
+        VALUES (?, 'savings_sweep', ?, ?, ?, ?, ?, ?)
+      `).run(txId, account.id, unusedPaise, today, `Allocation closed -> Moved to Savings`, defaultNote, nowIso);
+
+      db.exec('COMMIT');
+      res.json({ success: true, savedPaise: unusedPaise, accountName: account.name });
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Directly add money to an account (supports both direct addition of already recorded money and new income)
+apiRouter.post('/accounts/:id/add-money', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amountPaise, isNewIncome = false, source = 'Direct Addition', description, date } = req.body;
+    const parsedAmount = parseInt(amountPaise, 10);
+    if (!parsedAmount || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive amount is required' });
+    }
+
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    if (!account) {
+      return res.status(404).json({ error: 'Financial account not found' });
+    }
+
+    const today = date || new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+
+    db.exec('BEGIN TRANSACTION');
+    try {
+      if (isNewIncome) {
+        // Create income record and allocate directly to this account
+        const incId = `inc-${Date.now()}`;
+        db.prepare(`
+          INSERT INTO incomes (id, amount_paise, source, date, description, allocated_paise, unallocated_paise, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        `).run(incId, parsedAmount, source.trim(), today, description?.trim() || null, parsedAmount, nowIso);
+
+        db.prepare(`
+          INSERT INTO income_allocations (id, income_id, account_id, amount_paise, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(`alloc-${Date.now()}`, incId, id, parsedAmount, nowIso);
+
+        db.prepare('UPDATE accounts SET balance_paise = balance_paise + ? WHERE id = ?')
+          .run(parsedAmount, id);
+
+        db.prepare(`
+          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_income_id, created_at)
+          VALUES (?, 'income_allocation', ?, ?, ?, ?, ?, ?)
+        `).run(`tx-inc-${Date.now()}`, id, parsedAmount, today, `Income: ${source}${description ? ' - ' + description : ''}`, incId, nowIso);
+      } else {
+        // Direct addition of already recorded money: avoids double counting income!
+        db.prepare('UPDATE accounts SET balance_paise = balance_paise + ? WHERE id = ?')
+          .run(parsedAmount, id);
+
+        const desc = description?.trim() || `Added funds to ${account.name} (Direct / already recorded)`;
+        db.prepare(`
+          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, created_at)
+          VALUES (?, 'direct_deposit', ?, ?, ?, ?, ?)
+        `).run(`tx-dep-${Date.now()}`, id, parsedAmount, today, desc, nowIso);
+      }
+
+      db.exec('COMMIT');
+      res.json({ success: true, newBalancePaise: account.balance_paise + parsedAmount });
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manually set available balance for an account
+apiRouter.post('/accounts/:id/set-balance', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { targetBalancePaise, notes } = req.body;
+    const newBalance = parseInt(targetBalancePaise, 10);
+    if (isNaN(newBalance) || newBalance < 0) {
+      return res.status(400).json({ error: 'Valid non-negative balance is required' });
+    }
+
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    if (!account) {
+      return res.status(404).json({ error: 'Financial account not found' });
+    }
+
+    const diff = newBalance - account.balance_paise;
+    const today = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+
+    db.exec('BEGIN TRANSACTION');
+    try {
+      db.prepare('UPDATE accounts SET balance_paise = ? WHERE id = ?').run(newBalance, id);
+
+      if (diff !== 0) {
+        const desc = notes?.trim() || `Balance adjusted from ₹${(account.balance_paise / 100).toFixed(2)} to ₹${(newBalance / 100).toFixed(2)}`;
+        db.prepare(`
+          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, notes, created_at)
+          VALUES (?, 'balance_adjustment', ?, ?, ?, ?, ?, ?)
+        `).run(`tx-adj-${Date.now()}`, id, Math.abs(diff), today, desc, notes?.trim() || null, nowIso);
+      }
+
+      db.exec('COMMIT');
+      res.json({ success: true, balancePaise: newBalance });
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// DEDICATED SAVINGS REFERENCE ENDPOINT
+// -------------------------------------------------------------
+apiRouter.get('/savings', (req, res) => {
+  try {
+    const totalStmt = db.prepare('SELECT COALESCE(SUM(amount_paise), 0) as total FROM savings_records');
+    const totalSavedPaise = (totalStmt.get() as any).total || 0;
+
+    const byAccountStmt = db.prepare(`
+      SELECT source_account_name, COALESCE(SUM(amount_paise), 0) as total_paise, COUNT(*) as count
+      FROM savings_records
+      GROUP BY source_account_name
+      ORDER BY total_paise DESC
+    `);
+    const byAccount = byAccountStmt.all();
+
+    const recordsStmt = db.prepare('SELECT * FROM savings_records ORDER BY date DESC, created_at DESC');
+    const records = recordsStmt.all();
+
+    res.json({
+      totalSavedPaise,
+      byAccount,
+      records
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -595,6 +764,19 @@ apiRouter.delete('/transactions/:id', (req, res) => {
             db.prepare('DELETE FROM transfers WHERE id = ?').run(transfer.id);
           }
         }
+      } else if (tx.type === 'savings_sweep') {
+        // Reverse savings sweep: return swept funds back to the account and remove from savings records
+        db.prepare('UPDATE accounts SET balance_paise = balance_paise + ? WHERE id = ?')
+          .run(tx.amount_paise, tx.account_id);
+        const record = db.prepare('SELECT id FROM savings_records WHERE source_account_id = ? AND amount_paise = ? ORDER BY created_at DESC LIMIT 1').get(tx.account_id, tx.amount_paise) as any;
+        if (record) {
+          db.prepare('DELETE FROM savings_records WHERE id = ?').run(record.id);
+        }
+        db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+      } else if (tx.type === 'direct_deposit' || tx.type === 'balance_adjustment') {
+        db.prepare('UPDATE accounts SET balance_paise = balance_paise - ? WHERE id = ?')
+          .run(tx.amount_paise, tx.account_id);
+        db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
       }
 
       db.exec('COMMIT');
@@ -1057,15 +1239,13 @@ apiRouter.get('/reports/monthly', (req, res) => {
     `);
     const expensePaise = (expenseStmt.get(startDate, endDate) as any).total || 0;
 
-    // Savings added this month (income allocations to savings accounts + transfers into savings)
-    const savingsAllocStmt = db.prepare(`
-      SELECT COALESCE(SUM(t.amount_paise), 0) as total
-      FROM transactions t
-      JOIN accounts a ON t.account_id = a.id
-      WHERE a.type = 'savings' AND (t.type = 'income_allocation' OR t.type = 'transfer_in')
-        AND t.date >= ? AND t.date <= ?
+    // Savings added this month (from dedicated savings records)
+    const savingsRecordStmt = db.prepare(`
+      SELECT COALESCE(SUM(amount_paise), 0) as total
+      FROM savings_records
+      WHERE date >= ? AND date <= ?
     `);
-    const savingsAddedPaise = (savingsAllocStmt.get(startDate, endDate) as any).total || 0;
+    const savingsAddedPaise = (savingsRecordStmt.get(startDate, endDate) as any).total || 0;
 
     // Category breakdown
     const categoryBreakdown = db.prepare(`
@@ -1134,14 +1314,11 @@ apiRouter.get('/reports/monthly', (req, res) => {
   }
 });
 
-// Dedicated Petrol Report
+// Dedicated Petrol Report (expenses, litres, stations; no spending limits or caps)
 apiRouter.get('/reports/petrol', (req, res) => {
   try {
     const monthQuery = typeof req.query.month === 'string' ? req.query.month : undefined;
     const { startDate, endDate, monthKey } = getMonthBounds(monthQuery);
-
-    const petrolBudgetRow = db.prepare("SELECT amount_paise FROM budgets WHERE linked_account_id = 'acc-petrol' AND is_paused = 0").get() as any;
-    const petrolBudgetPaise = petrolBudgetRow ? petrolBudgetRow.amount_paise : 200000;
 
     // Monthly petrol transactions
     const txRows = db.prepare(`
@@ -1156,9 +1333,6 @@ apiRouter.get('/reports/petrol', (req, res) => {
     const totalSpentPaise = txRows.reduce((acc, t) => acc + t.amount_paise, 0);
     const count = txRows.length;
     const avgExpensePaise = count > 0 ? Math.round(totalSpentPaise / count) : 0;
-    const remainingBudgetPaise = petrolBudgetPaise - totalSpentPaise;
-    const isExceeded = totalSpentPaise > petrolBudgetPaise;
-    const overrunPaise = isExceeded ? totalSpentPaise - petrolBudgetPaise : 0;
 
     // Total litres and fuel stations visited
     let totalLitres = 0;
@@ -1172,13 +1346,9 @@ apiRouter.get('/reports/petrol', (req, res) => {
 
     res.json({
       month: monthKey,
-      budgetPaise: petrolBudgetPaise,
       totalSpentPaise,
       count,
       avgExpensePaise,
-      remainingBudgetPaise,
-      isExceeded,
-      overrunPaise,
       totalLitres: Number(totalLitres.toFixed(2)),
       stationVisits: stations,
       transactions: txRows
@@ -1210,7 +1380,7 @@ apiRouter.get('/export/csv', (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="my_money_manager_transactions.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="rupee_transactions.csv"');
     res.send(csv);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1228,6 +1398,7 @@ apiRouter.get('/export/backup', (req, res) => {
       transfers: db.prepare('SELECT * FROM transfers').all(),
       transactions: db.prepare('SELECT * FROM transactions').all(),
       petrol_logs: db.prepare('SELECT * FROM petrol_logs').all(),
+      savings_records: db.prepare('SELECT * FROM savings_records').all(),
       settings: db.prepare('SELECT * FROM settings').all(),
       exportedAt: new Date().toISOString()
     };
@@ -1248,6 +1419,7 @@ apiRouter.post('/import/backup', (req, res) => {
     try {
       // Clear current data
       db.exec(`
+        DELETE FROM savings_records;
         DELETE FROM petrol_logs;
         DELETE FROM transactions;
         DELETE FROM transfers;
@@ -1320,6 +1492,15 @@ apiRouter.post('/import/backup', (req, res) => {
         insPl.run(pl.id, pl.transaction_id, pl.expense_paise, pl.litres, pl.price_per_litre, pl.odometer, pl.fuel_station, pl.date, pl.notes, pl.created_at);
       }
 
+      // Restore savings_records
+      const insSav = db.prepare(`
+        INSERT INTO savings_records (id, amount_paise, source_account_id, source_account_name, date, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const sav of backup.savings_records || []) {
+        insSav.run(sav.id, sav.amount_paise, sav.source_account_id, sav.source_account_name, sav.date, sav.notes, sav.created_at);
+      }
+
       db.exec('COMMIT');
       res.json({ success: true, count: backup.transactions.length });
     } catch (e) {
@@ -1344,27 +1525,19 @@ apiRouter.post('/settings', (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run(key, String(value));
 
-    // If updating petrol budget, also sync the College Petrol budget record
-    if (key === 'petrol_monthly_budget_paise') {
-      const budgetPaise = parseInt(value, 10);
-      if (budgetPaise > 0) {
-        db.prepare("UPDATE budgets SET amount_paise = ? WHERE linked_account_id = 'acc-petrol'")
-          .run(budgetPaise);
-      }
-    }
-
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Full reset (start completely clean with ₹0 balance on initial accounts)
+// Full reset (start completely clean with ₹0 balance on primary accounts, no budgets)
 apiRouter.post('/reset', (req, res) => {
   try {
     db.exec('BEGIN TRANSACTION');
     try {
       db.exec(`
+        DELETE FROM savings_records;
         DELETE FROM petrol_logs;
         DELETE FROM transactions;
         DELETE FROM transfers;
@@ -1375,7 +1548,6 @@ apiRouter.post('/reset', (req, res) => {
       `);
 
       const now = new Date().toISOString();
-      const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
 
       // Re-seed system accounts with 0 balance
       const insertAccount = db.prepare(`
@@ -1384,14 +1556,8 @@ apiRouter.post('/reset', (req, res) => {
       `);
       insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, now);
       insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, now);
-      insertAccount.run('acc-savings', 'Savings', 'savings', 0, '#10b981', 'PiggyBank', 1, now);
 
-      db.prepare(`
-        INSERT INTO budgets (id, name, linked_account_id, category_id, amount_paise, period, start_date, is_paused, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run('bgt-college-petrol', 'College Petrol Monthly Budget', 'acc-petrol', 'cat-petrol', 200000, 'monthly', firstDayOfMonth, 0, now);
-
-      db.prepare("UPDATE settings SET value = 'false' WHERE key = 'is_onboarded'").run();
+      db.prepare("UPDATE settings SET value = 'true' WHERE key = 'is_onboarded'").run();
 
       db.exec('COMMIT');
       res.json({ success: true });
@@ -1404,7 +1570,7 @@ apiRouter.post('/reset', (req, res) => {
   }
 });
 
-// Optional Demo Seed (Student scenario: IT income ₹5,000 allocated, petrol expense ₹650, shopping ₹500, canteen ₹150, transfer ₹200)
+// Optional Demo Seed (Student scenario: IT income ₹5,000 allocated ₹2,000 Petrol & ₹3,000 Personal Spending, expenses, no monthly budget limits)
 apiRouter.post('/demo/seed', (req, res) => {
   try {
     const now = new Date();
@@ -1415,6 +1581,7 @@ apiRouter.post('/demo/seed', (req, res) => {
     try {
       // 1. Reset
       db.exec(`
+        DELETE FROM savings_records;
         DELETE FROM petrol_logs;
         DELETE FROM transactions;
         DELETE FROM transfers;
@@ -1426,23 +1593,16 @@ apiRouter.post('/demo/seed', (req, res) => {
 
       const nowIso = now.toISOString();
 
-      // Accounts
+      // Accounts: exactly College Petrol and Personal Spending
       const insertAccount = db.prepare(`
         INSERT INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, nowIso);
       insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, nowIso);
-      insertAccount.run('acc-savings', 'Savings', 'savings', 0, '#10b981', 'PiggyBank', 1, nowIso);
-
-      // College Petrol budget: ₹2,000/month
-      db.prepare(`
-        INSERT INTO budgets (id, name, linked_account_id, category_id, amount_paise, period, start_date, is_paused, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run('bgt-college-petrol', 'College Petrol Monthly Budget', 'acc-petrol', 'cat-petrol', 200000, 'monthly', firstDay, 0, nowIso);
 
       // Scenario Step 1: Receive ₹5,000 from IT work
-      // Allocate ₹2,000 to College Petrol, ₹2,000 to Personal Spending, ₹1,000 to Savings
+      // Allocate ₹2,000 to College Petrol, ₹3,000 to Personal Spending (matching requirement 6)
       const incId = `inc-demo-1`;
       db.prepare(`
         INSERT INTO incomes (id, amount_paise, source, date, description, allocated_paise, unallocated_paise, created_at)
@@ -1451,9 +1611,8 @@ apiRouter.post('/demo/seed', (req, res) => {
 
       // Allocations
       const allocs = [
-        { accId: 'acc-petrol', amt: 200000, note: 'Monthly petrol fuel fund' },
-        { accId: 'acc-spending', amt: 200000, note: 'Personal monthly expenses' },
-        { accId: 'acc-savings', amt: 100000, note: 'Savings reserve' },
+        { accId: 'acc-petrol', amt: 200000, note: 'College petrol allocation' },
+        { accId: 'acc-spending', amt: 300000, note: 'Personal spending allocation' },
       ];
       for (const a of allocs) {
         db.prepare(`
@@ -1470,8 +1629,7 @@ apiRouter.post('/demo/seed', (req, res) => {
         `).run(`tx-inc-${a.accId}`, a.accId, a.amt, firstDay, `Income: IT work (${a.note})`, incId, nowIso);
       }
 
-      // Scenario Step 2: Record ₹300 petrol expense (and a ₹350 refuel earlier in week)
-      // First refuel ₹350
+      // Scenario Step 2: Record ₹300 petrol expense (and a ₹350 refuel earlier)
       const pet1TxId = `tx-demo-pet1`;
       db.prepare('UPDATE accounts SET balance_paise = balance_paise - 35000 WHERE id = ?').run('acc-petrol');
       db.prepare(`
@@ -1483,7 +1641,6 @@ apiRouter.post('/demo/seed', (req, res) => {
         VALUES (?, ?, 35000, 3.40, 102.94, 14250, 'Indian Oil Highway', ?, 'Full tank commute', ?)
       `).run('pet-demo-1', pet1TxId, today, nowIso);
 
-      // Second refuel ₹300
       const pet2TxId = `tx-demo-pet2`;
       db.prepare('UPDATE accounts SET balance_paise = balance_paise - 30000 WHERE id = ?').run('acc-petrol');
       db.prepare(`
@@ -1529,6 +1686,161 @@ apiRouter.post('/demo/seed', (req, res) => {
       throw e;
     }
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// GEMINI CHATBOT & AI ENDPOINTS
+// -------------------------------------------------------------
+
+apiRouter.get('/gemini/personas', (req, res) => {
+  res.json({
+    personas: [
+      {
+        id: 'advisor',
+        name: 'Personal Financial Advisor',
+        description: 'Comprehensive advice on accounts, college petrol limits, and independent savings.',
+        suggestedPrompts: [
+          'How is my overall financial health looking this month?',
+          'How much money can I safely spend on non-essentials?',
+          'Can you explain why my savings are excluded from available spending?',
+          'What is the best way to allocate my next income of ₹5,000?',
+        ],
+      },
+      {
+        id: 'budget_coach',
+        name: 'College Budget Coach',
+        description: 'Practical, high-energy coaching to prevent overspending and grow savings.',
+        suggestedPrompts: [
+          'How can I cut down on unnecessary canteen expenses?',
+          'Give me a game plan to save an extra ₹1,000 this month.',
+          'Am I spending too much on weekends?',
+        ],
+      },
+      {
+        id: 'petrol_auditor',
+        name: 'College Petrol Auditor',
+        description: 'Deep dive into fuel efficiency, price per litre, and the ₹2,000 monthly petrol cap.',
+        suggestedPrompts: [
+          'Am I on track to stay within my ₹2,000 petrol budget?',
+          'How many days until my petrol budget resets?',
+          'Analyze my recent fuel efficiency and station logs.',
+        ],
+      },
+      {
+        id: 'complex_analyst',
+        name: 'Quantitative Scenario Analyst',
+        description: 'In-depth multi-month forecasts, emergency fund sizing, and trade-off simulations.',
+        suggestedPrompts: [
+          'Model my net worth trajectory over the next 6 months.',
+          'Simulate a scenario where my petrol expense increases by ₹500/month.',
+          'Provide a quantitative comparison between my income rate and burn rate.',
+        ],
+      },
+    ],
+  });
+});
+
+apiRouter.post('/gemini/chat', async (req, res) => {
+  try {
+    const {
+      messages,
+      model,
+      persona = 'advisor',
+      taskComplexity = 'general',
+      includeFinancialContext = true,
+    } = req.body;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'Messages array is required.' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({
+        error: 'GEMINI_API_KEY is not configured on the server. Please check your environment secrets.',
+      });
+    }
+
+    // Model selection based on requirements:
+    // - gemini-4-argon for particularly complex tasks
+    // - gemini-3.8-flash for general tasks
+    // - gemini-3.1-flash-lite for tasks that should happen fast
+    let targetModel = 'gemini-3.8-flash';
+    if (model) {
+      targetModel = model;
+    } else if (taskComplexity === 'complex' || persona === 'complex_analyst') {
+      targetModel = 'gemini-4-argon';
+    } else if (taskComplexity === 'fast') {
+      targetModel = 'gemini-3.1-flash-lite';
+    }
+
+    // Construct system instruction combining role persona and real-time financial context
+    const personaInstruction = PERSONAS[persona] || PERSONAS.advisor;
+    const context = includeFinancialContext ? getLiveFinancialContext() : '';
+    const fullSystemInstruction = `${personaInstruction}\n\n${context}`;
+
+    // Format multi-turn conversation contents
+    const contents = messages.map((m: any) => ({
+      role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+      parts: [{ text: String(m.text || m.content || '') }],
+    }));
+
+    const response = await ai.models.generateContent({
+      model: targetModel,
+      contents,
+      config: {
+        systemInstruction: fullSystemInstruction,
+      },
+    });
+
+    const replyText = response.text || 'I analyzed your request, but could not produce a response.';
+
+    res.json({
+      reply: replyText,
+      modelUsed: targetModel,
+      persona,
+    });
+  } catch (err: any) {
+    console.error('Gemini chat error:', err);
+    let errorMsg = err?.message || 'Failed to generate response from Gemini AI';
+    try {
+      const parsed = JSON.parse(errorMsg);
+      if (parsed.error?.message) {
+        errorMsg = parsed.error.message;
+      }
+    } catch (e) {}
+    res.status(500).json({
+      error: errorMsg,
+    });
+  }
+});
+
+apiRouter.post('/gemini/quick-insight', async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.json({
+        insight: 'Add your GEMINI_API_KEY to unlock instant AI financial insights.',
+        modelUsed: 'none',
+      });
+    }
+
+    const context = getLiveFinancialContext();
+    // Fast task using gemini-3.1-flash-lite
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-lite',
+      contents: 'Provide a snappy 2-sentence executive summary of the user financial position, highlighting their petrol budget status and savings buffer.',
+      config: {
+        systemInstruction: `You are an elite personal finance AI assistant for Rupee. ${context}`,
+      },
+    });
+
+    res.json({
+      insight: response.text || 'Financial snapshot compiled.',
+      modelUsed: 'gemini-3.1-flash-lite',
+    });
+  } catch (err: any) {
+    console.error('Gemini quick insight error:', err);
     res.status(500).json({ error: err.message });
   }
 });

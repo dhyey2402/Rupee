@@ -2,11 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# Rupee. — Personal Money Management System
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/81b8d74e-21df-4713-8239-99613e87a9f9
+A personal money management web and mobile application with independent College Petrol and Personal Spending accounts, allocation closeouts to Savings, and real-time Gemini AI assistance.
 
 ## Run Locally
 

@@ -68,11 +68,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ selectedMonth, onMonth
     100000
   );
 
-  // Generate authentic quantitative insight sentences
-  const petrolPct = petrolReport.budgetPaise > 0
-    ? ((petrolReport.totalSpentPaise / petrolReport.budgetPaise) * 100).toFixed(1)
-    : '0';
-
   // Compare with previous month trend if available
   const currentTrendIdx = sixMonthsTrend.findIndex((t: any) => t.month === selectedMonth);
   const prevMonthTrend = currentTrendIdx > 0 ? sixMonthsTrend[currentTrendIdx - 1] : null;
@@ -114,15 +109,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ selectedMonth, onMonth
         </div>
       </div>
 
-      {/* Narrative Insights Strip (Domain-Grounded) */}
+      {/* Narrative Insights Strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
         <div className="bg-[#FAF7F2] p-4.5 rounded-2xl border border-[#EFE8DC] space-y-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#854D0E]">
             <Fuel className="w-3.5 h-3.5 text-[#B45309]" />
-            <span>Petrol Commute Utilization</span>
+            <span>College Petrol Spending</span>
           </div>
           <p className="text-xs text-[#713F12] leading-relaxed">
-            You have used <strong className="text-[#111318] font-bold tabular-nums">{petrolPct}%</strong> of your ₹2,000 petrol budget this month.
+            Spent <strong className="text-[#111318] font-bold tabular-nums">{formatINR(petrolReport.totalSpentPaise)}</strong> across {petrolReport.count} refuel{petrolReport.count === 1 ? '' : 's'} this month.
           </p>
           {petrolDeltaText && (
             <p className="text-[11px] text-[#B45309] font-medium pt-1">

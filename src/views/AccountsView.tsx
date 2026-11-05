@@ -12,6 +12,7 @@ import {
   TrendingUp,
   ShieldCheck,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 import { Account, Transaction } from '../types';
 import { formatINR, formatDate } from '../utils/format';
@@ -23,6 +24,8 @@ interface AccountsViewProps {
   onOpenEditAccount: (acc: Account) => void;
   onOpenTransfer: (fromId?: string, toId?: string) => void;
   onOpenExpense: (accountId?: string) => void;
+  onOpenAddMoney?: (account: Account, defaultMode?: 'add' | 'set') => void;
+  onOpenCloseAllocation?: (account: Account) => void;
   onDeleteAccount: (acc: Account) => void;
   onSelectTab: (tab: any) => void;
 }
@@ -33,14 +36,23 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   onOpenEditAccount,
   onOpenTransfer,
   onOpenExpense,
+  onOpenAddMoney,
+  onOpenCloseAllocation,
   onDeleteAccount,
   onSelectTab,
 }) => {
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(accounts[0]?.id || '');
+  // Only primary financial accounts (Savings is a dedicated reference section, not an account)
+  const financialAccounts = accounts.filter(
+    a => a.type !== 'savings' && a.type !== 'archived_savings'
+  );
+
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(
+    financialAccounts[0]?.id || ''
+  );
   const [accountHistory, setAccountHistory] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const activeAccount = accounts.find(a => a.id === selectedAccountId) || accounts[0];
+  const activeAccount = financialAccounts.find(a => a.id === selectedAccountId) || financialAccounts[0];
 
   React.useEffect(() => {
     if (activeAccount) {
@@ -55,11 +67,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
     }
   }, [activeAccount?.id]);
 
-  const totalBalancePaise = accounts.reduce((acc, a) => acc + a.balance_paise, 0);
-  const savingsPaise = accounts
-    .filter(a => a.type === 'savings')
-    .reduce((acc, a) => acc + a.balance_paise, 0);
-  const spendingPaise = totalBalancePaise - savingsPaise;
+  const totalBalancePaise = financialAccounts.reduce((sum, a) => sum + a.balance_paise, 0);
+  const spendingAcc = financialAccounts.find(a => a.type === 'spending');
+  const petrolAcc = financialAccounts.find(a => a.type === 'petrol');
+  const spendingPaise = spendingAcc ? spendingAcc.balance_paise : 0;
+  const petrolPaise = petrolAcc ? petrolAcc.balance_paise : 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -67,10 +79,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-[#111318] tracking-tight">
-            Account Management
+            Financial Accounts
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
-            Independent financial stores with isolated balances and dedicated monthly caps
+            Primary financial accounts: College Petrol and Personal Spending with independent balances
           </p>
         </div>
 
@@ -97,21 +109,27 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       {/* Aggregate Balance Callout Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">Combined Account Balance</span>
-          <p className="text-2xl font-black text-[#111318] tabular-nums mt-1">{formatINR(totalBalancePaise)}</p>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Total across all accounts</p>
+          <span className="text-xs font-semibold text-[#6B7280]">Total Money Across Accounts</span>
+          <p className="text-2xl font-black text-[#111318] tabular-nums mt-1">
+            {formatINR(totalBalancePaise)}
+          </p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Sum of all active account balances</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">Available for Spending</span>
-          <p className="text-2xl font-black text-[#065F46] tabular-nums mt-1">{formatINR(spendingPaise)}</p>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Excludes locked savings</p>
+          <span className="text-xs font-semibold text-[#6B7280]">Personal Spending Available</span>
+          <p className="text-2xl font-black text-[#0ea5e9] tabular-nums mt-1">
+            {formatINR(spendingPaise)}
+          </p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Available for everyday personal needs</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">Total Savings Reserve</span>
-          <p className="text-2xl font-black text-[#0F766E] tabular-nums mt-1">{formatINR(savingsPaise)}</p>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Untouchable safety net</p>
+          <span className="text-xs font-semibold text-[#6B7280]">College Petrol Available</span>
+          <p className="text-2xl font-black text-[#B45309] tabular-nums mt-1">
+            {formatINR(petrolPaise)}
+          </p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Available for college commute travel</p>
         </div>
       </div>
 
@@ -124,10 +142,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           </h3>
 
           <div className="space-y-2.5">
-            {accounts.map(acc => {
+            {financialAccounts.map(acc => {
               const isSelected = activeAccount?.id === acc.id;
               const isPetrol = acc.type === 'petrol';
-              const isSavings = acc.type === 'savings';
 
               return (
                 <div
@@ -152,7 +169,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                           <h4 className="text-sm font-bold text-[#111318]">{acc.name}</h4>
                         </div>
                         <p className="text-xs text-[#6B7280]">
-                          {isPetrol ? 'Petrol Budget (₹2k)' : isSavings ? 'Savings Reserve' : 'Everyday Spending'}
+                          {isPetrol ? 'College Travel Fund' : 'Everyday Spending'}
                         </p>
                       </div>
                     </div>
@@ -185,7 +202,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   <div>
                     <h3 className="text-lg font-bold text-[#111318]">{activeAccount.name}</h3>
                     <p className="text-xs text-[#6B7280]">
-                      Account Type: <strong className="capitalize text-[#374151]">{activeAccount.type}</strong>
+                      Primary Financial Account • No monthly spending limit
                     </p>
                   </div>
                 </div>
@@ -195,7 +212,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     type="button"
                     onClick={() => onOpenEditAccount(activeAccount)}
                     className="p-2 rounded-xl text-[#6B7280] hover:text-[#111318] hover:bg-[#F3F4F6] transition-colors cursor-pointer"
-                    title="Edit Account Name, Color, or Limit"
+                    title="Edit Account Name, Color, or Icon"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -213,56 +230,89 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 </div>
               </div>
 
-              {/* 3 Metric Pills */}
+              {/* Exact 3 Financial Metrics required by user:
+                  1. Current Balance
+                  2. Spent This Month
+                  3. Available Money */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-[#F9FAFB] p-3.5 rounded-xl border border-[#E5E7EB]">
-                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">Current Balance</span>
+                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">1. Current Balance</span>
                   <p className="text-lg font-black text-[#111318] tabular-nums mt-0.5">
                     {formatINR(activeAccount.balance_paise)}
                   </p>
+                  <p className="text-[10px] text-[#9CA3AF] mt-0.5">Money currently held in account</p>
                 </div>
 
                 <div className="bg-[#F9FAFB] p-3.5 rounded-xl border border-[#E5E7EB]">
-                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">Monthly Spending Limit</span>
-                  <p className="text-lg font-bold text-[#374151] tabular-nums mt-0.5">
-                    {activeAccount.budget ? formatINR(activeAccount.budget.amount_paise) : 'No Limit Set'}
-                  </p>
-                </div>
-
-                <div className="bg-[#F9FAFB] p-3.5 rounded-xl border border-[#E5E7EB]">
-                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">Spent This Month</span>
-                  <p className="text-lg font-bold text-[#111318] tabular-nums mt-0.5">
+                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">2. Spent This Month</span>
+                  <p className="text-lg font-bold text-[#B45309] tabular-nums mt-0.5">
                     {formatINR(activeAccount.monthly_spent_paise || 0)}
                   </p>
+                  <p className="text-[10px] text-[#9CA3AF] mt-0.5">Expenses in current calendar month</p>
+                </div>
+
+                <div className="bg-[#F9FAFB] p-3.5 rounded-xl border border-[#E5E7EB]">
+                  <span className="text-[10px] uppercase font-bold text-[#6B7280]">3. Available Money</span>
+                  <p className="text-lg font-black text-[#065F46] tabular-nums mt-0.5">
+                    {formatINR(activeAccount.balance_paise)}
+                  </p>
+                  <p className="text-[10px] text-[#9CA3AF] mt-0.5">Amount available to spend</p>
                 </div>
               </div>
 
-              {/* Quick Actions */}
-              <div className="flex gap-2 pt-1">
-                {activeAccount.type !== 'savings' ? (
+              {/* Account Quick Actions */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onOpenExpense(activeAccount.id)}
+                  className="px-4 py-2 bg-[#065F46] hover:bg-[#047857] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Record Expense</span>
+                </button>
+
+                {onOpenAddMoney && (
                   <button
                     type="button"
-                    onClick={() => onOpenExpense(activeAccount.id)}
-                    className="px-4 py-2 bg-[#065F46] hover:bg-[#047857] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    onClick={() => onOpenAddMoney(activeAccount, 'add')}
+                    className="px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#1F2937] border border-[#E5E7EB] rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                   >
-                    + Record Expense
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onOpenTransfer(undefined, activeAccount.id)}
-                    className="px-4 py-2 bg-[#065F46] hover:bg-[#047857] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    + Deposit to Savings
+                    <Plus className="w-3.5 h-3.5 text-[#065F46]" />
+                    <span>Add Money</span>
                   </button>
                 )}
+
+                {onOpenAddMoney && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAddMoney(activeAccount, 'set')}
+                    className="px-3 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB] rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                    title="Manually enter currently available money"
+                  >
+                    <span>Set Balance</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => onOpenTransfer(activeAccount.id)}
-                  className="px-4 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#374151] border border-[#E5E7EB] rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-3 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB] rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  Transfer Money
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-[#6B7280]" />
+                  <span>Transfer</span>
                 </button>
+
+                {onOpenCloseAllocation && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenCloseAllocation(activeAccount)}
+                    className="px-3.5 py-2 bg-[#ECFDF5] hover:bg-[#D1FAE5] text-[#065F46] border border-[#A7F3D0] rounded-xl text-xs font-bold transition-colors cursor-pointer ml-auto flex items-center gap-1.5"
+                    title="Close this allocation and sweep unused balance directly to Savings"
+                  >
+                    <PiggyBank className="w-3.5 h-3.5 text-[#065F46]" />
+                    <span>Close Allocation</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -282,23 +332,32 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 <div className="divide-y divide-[#F0F1F3]">
                   {accountHistory.map(tx => {
                     const isOutflow = tx.type === 'expense' || tx.type === 'transfer_out';
+                    const isSavingsSweep = tx.type === 'savings_sweep';
+
                     return (
                       <div
                         key={tx.id}
-                        className="py-3 flex items-center justify-between text-xs hover:bg-[#F9FAFB] px-2 rounded-lg"
+                        className="py-3 flex items-center justify-between text-xs hover:bg-[#F9FAFB] px-2 rounded-lg transition-colors"
                       >
                         <div className="space-y-0.5">
                           <p className="font-bold text-[#111318]">{tx.description}</p>
                           <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
                             <span>{formatDate(tx.date)}</span>
                             {tx.merchant && <span>• {tx.merchant}</span>}
+                            {isSavingsSweep && (
+                              <span className="text-[#065F46] font-semibold">• Moved to Savings</span>
+                            )}
                           </div>
                         </div>
 
                         <div className="text-right">
                           <p
                             className={`font-black tabular-nums ${
-                              isOutflow ? 'text-[#111318]' : 'text-[#065F46]'
+                              isOutflow
+                                ? 'text-[#111318]'
+                                : isSavingsSweep
+                                ? 'text-[#065F46]'
+                                : 'text-[#065F46]'
                             }`}
                           >
                             {isOutflow ? '-' : '+'}

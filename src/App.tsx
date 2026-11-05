@@ -15,7 +15,9 @@ import { DashboardView } from './views/DashboardView';
 import { AccountsView } from './views/AccountsView';
 import { TransactionsView } from './views/TransactionsView';
 import { BudgetsView } from './views/BudgetsView';
+import { SavingsView } from './views/SavingsView';
 import { ReportsView } from './views/ReportsView';
+import { AiAdvisorView } from './views/AiAdvisorView';
 import { SettingsView } from './views/SettingsView';
 
 // Modals
@@ -26,6 +28,8 @@ import { AllocateFundsModal } from './components/modals/AllocateFundsModal';
 import { EditTransactionModal } from './components/modals/EditTransactionModal';
 import { AccountModal } from './components/modals/AccountModal';
 import { BudgetModal } from './components/modals/BudgetModal';
+import { CloseAllocationModal } from './components/modals/CloseAllocationModal';
+import { AddMoneyModal } from './components/modals/AddMoneyModal';
 import { OnboardingModal } from './components/modals/OnboardingModal';
 import { ConfirmDeleteModal } from './components/modals/ConfirmDeleteModal';
 
@@ -58,7 +62,12 @@ export default function App() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
 
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  // Close Allocation modal
+  const [accountForCloseAlloc, setAccountForCloseAlloc] = useState<Account | null>(null);
+
+  // Add Money / Set Balance modal
+  const [accountForAddMoney, setAccountForAddMoney] = useState<Account | null>(null);
+  const [addMoneyDefaultMode, setAddMoneyDefaultMode] = useState<'add' | 'set'>('add');
 
   // Confirm delete modal state
   const [deleteModalState, setDeleteModalState] = useState<{
@@ -81,11 +90,6 @@ export default function App() {
       if (!res.ok) throw new Error('Failed to load application data');
       const json: BootstrapData = await res.json();
       setData(json);
-
-      // Check onboarding state
-      if (json.settings.is_onboarded !== 'true') {
-        setIsOnboardingOpen(true);
-      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -127,6 +131,15 @@ export default function App() {
     } catch (e: any) {
       alert(e.message);
     }
+  };
+
+  const handleOpenCloseAllocation = (account: Account) => {
+    setAccountForCloseAlloc(account);
+  };
+
+  const handleOpenAddMoney = (account: Account, defaultMode: 'add' | 'set' = 'add') => {
+    setAccountForAddMoney(account);
+    setAddMoneyDefaultMode(defaultMode);
   };
 
   // Delete transaction handler
@@ -212,23 +225,14 @@ export default function App() {
     await fetchData();
   };
 
-  // Extract petrol budget information for persistent navigation indicators
-  const petrolBudget = data?.budgets?.find(
-    b => b.linked_account_id === 'acc-petrol' || b.name.toLowerCase().includes('petrol')
-  );
-  const petrolRemainingPaise = petrolBudget?.remaining_paise ?? 200000;
-  const petrolBudgetPaise = petrolBudget?.amount_paise ?? 200000;
-  const petrolPercentage = petrolBudget?.percentage ?? 0;
-  const petrolExceeded = petrolBudget?.is_exceeded ?? false;
-
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-[#065F46] text-white flex items-center justify-center font-mono font-bold text-xl shadow-md animate-pulse mb-3">
           ₹
         </div>
-        <p className="text-sm font-bold text-[#111318]">My Money Manager</p>
-        <p className="text-xs text-[#717680] mt-1 font-mono">Loading financial accounts & budgets...</p>
+        <p className="text-sm font-bold text-[#111318]">Rupee.</p>
+        <p className="text-xs text-[#717680] mt-1 font-mono">Loading financial accounts...</p>
       </div>
     );
   }
@@ -264,10 +268,9 @@ export default function App() {
         onOpenExpense={() => handleOpenExpense()}
         onOpenIncome={() => setIsIncomeModalOpen(true)}
         onOpenTransfer={() => handleOpenTransfer()}
-        petrolRemainingPaise={petrolRemainingPaise}
-        petrolBudgetPaise={petrolBudgetPaise}
-        petrolPercentage={petrolPercentage}
-        petrolExceeded={petrolExceeded}
+        petrolAvailablePaise={data?.summary?.availablePetrolPaise ?? 0}
+        spendingAvailablePaise={data?.summary?.availableSpendingPaise ?? 0}
+        totalSavedPaise={data?.summary?.totalSavingsPaise ?? 0}
       />
 
       {/* Main Content Area */}
@@ -292,6 +295,8 @@ export default function App() {
                   onOpenIncome={() => setIsIncomeModalOpen(true)}
                   onOpenTransfer={handleOpenTransfer}
                   onOpenAllocate={handleOpenAllocate}
+                  onOpenAddMoney={handleOpenAddMoney}
+                  onOpenCloseAllocation={handleOpenCloseAllocation}
                   onSelectTab={setActiveTab}
                   onEditTransaction={setEditingTransaction}
                 />
@@ -310,6 +315,8 @@ export default function App() {
                   }}
                   onOpenTransfer={handleOpenTransfer}
                   onOpenExpense={handleOpenExpense}
+                  onOpenAddMoney={handleOpenAddMoney}
+                  onOpenCloseAllocation={handleOpenCloseAllocation}
                   onDeleteAccount={handleDeleteAccount}
                   onSelectTab={setActiveTab}
                 />
@@ -321,6 +328,14 @@ export default function App() {
                   categories={data.categories}
                   onEditTransaction={setEditingTransaction}
                   onDeleteTransaction={handleDeleteTransaction}
+                />
+              )}
+
+              {activeTab === 'savings' && (
+                <SavingsView
+                  savingsData={data.savings}
+                  onRefresh={() => fetchData()}
+                  onSelectTab={setActiveTab}
                 />
               )}
 
@@ -348,6 +363,10 @@ export default function App() {
                   selectedMonth={selectedMonth}
                   onMonthChange={handleMonthChange}
                 />
+              )}
+
+              {activeTab === 'advisor' && (
+                <AiAdvisorView data={data} />
               )}
 
               {activeTab === 'settings' && (
@@ -416,6 +435,21 @@ export default function App() {
             onSuccess={() => fetchData()}
           />
 
+          <CloseAllocationModal
+            isOpen={!!accountForCloseAlloc}
+            onClose={() => setAccountForCloseAlloc(null)}
+            account={accountForCloseAlloc}
+            onSuccess={() => fetchData()}
+          />
+
+          <AddMoneyModal
+            isOpen={!!accountForAddMoney}
+            onClose={() => setAccountForAddMoney(null)}
+            account={accountForAddMoney}
+            defaultMode={addMoneyDefaultMode}
+            onSuccess={() => fetchData()}
+          />
+
           <BudgetModal
             isOpen={isBudgetModalOpen}
             onClose={() => setIsBudgetModalOpen(false)}
@@ -423,13 +457,6 @@ export default function App() {
             accounts={data.accounts}
             categories={data.categories}
             onSuccess={() => fetchData()}
-          />
-
-          <OnboardingModal
-            isOpen={isOnboardingOpen}
-            onClose={() => setIsOnboardingOpen(false)}
-            onSuccess={() => fetchData()}
-            onLoadDemo={handleLoadDemo}
           />
 
           <ConfirmDeleteModal

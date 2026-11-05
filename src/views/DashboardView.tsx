@@ -5,7 +5,7 @@ import {
   TrendingDown,
   PiggyBank,
   Fuel,
-  AlertTriangle,
+  ShoppingBag,
   ArrowRight,
   Plus,
   ArrowRightLeft,
@@ -15,9 +15,13 @@ import {
   Clock,
   CheckCircle2,
   Sparkles,
+  Bot,
+  Mic,
+  ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { BootstrapData, Account, Transaction } from '../types';
-import { formatINR, splitINR, formatRelativeDate, formatDate, getBudgetResetInfo, groupTransactionsByDate } from '../utils/format';
+import { formatINR, splitINR, formatRelativeDate, formatDate, groupTransactionsByDate } from '../utils/format';
 import { CategoryIcon } from '../components/CategoryIcon';
 
 interface DashboardViewProps {
@@ -26,6 +30,8 @@ interface DashboardViewProps {
   onOpenIncome: () => void;
   onOpenTransfer: (fromId?: string, toId?: string) => void;
   onOpenAllocate: () => void;
+  onOpenAddMoney: (account: Account, defaultMode?: 'add' | 'set') => void;
+  onOpenCloseAllocation: (account: Account) => void;
   onSelectTab: (tab: any) => void;
   onEditTransaction: (tx: Transaction) => void;
 }
@@ -36,18 +42,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenIncome,
   onOpenTransfer,
   onOpenAllocate,
+  onOpenAddMoney,
+  onOpenCloseAllocation,
   onSelectTab,
   onEditTransaction,
 }) => {
   const { summary, accounts, recentTransactions, categoryBreakdown, petrolOverview } = data;
 
+  // Primary Financial Accounts
   const petrolAccount = accounts.find(a => a.type === 'petrol');
-  const petrolBudget = petrolAccount?.budget;
-  const otherAccounts = accounts.filter(a => a.type !== 'petrol');
+  const spendingAccount = accounts.find(a => a.type === 'spending');
+  const customAccounts = accounts.filter(
+    a => a.type !== 'petrol' && a.type !== 'spending' && a.type !== 'savings' && a.type !== 'archived_savings'
+  );
 
   const [y, m] = data.month.split('-').map(Number);
   const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const resetInfo = getBudgetResetInfo(data.month);
 
   const totalSplit = splitINR(summary.totalMoneyPaise);
   const groupedActivity = groupTransactionsByDate(recentTransactions.slice(0, 8));
@@ -57,15 +67,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 1. Hero Financial Command Center */}
       <div className="bg-white rounded-3xl border border-[#EAEBED] p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          {/* Main Net Worth / Total Balance Presentation */}
+          {/* Main Total Balance Presentation */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#6B7280]">
-              <span>Total Financial Holdings</span>
+              <span>Total Money Across All Accounts</span>
               <span className="text-[#D1D5DB]">•</span>
               <span>{monthName}</span>
             </div>
 
-            {/* Giant Monzo/Revolut-style Hero Numeric Display */}
+            {/* Numeric Display */}
             <div className="flex items-baseline gap-1 text-[#111318]">
               <span className="text-3xl sm:text-4xl font-bold text-[#6B7280]">
                 {totalSplit.symbol}
@@ -78,18 +88,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
-            {/* Subtle Distinct Breakdown - Clears user confusion */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#4B5563] pt-1">
+            {/* Clean Account Breakdown Badges (No generic budgets) */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[#4B5563] pt-1">
               <span>
-                Available to spend:{' '}
-                <strong className="text-[#065F46] tabular-nums font-bold">
-                  {formatINR(summary.availableSpendingPaise)}
+                Personal Spending Available:{' '}
+                <strong className="text-[#0ea5e9] tabular-nums font-bold">
+                  {formatINR(spendingAccount ? spendingAccount.balance_paise : summary.availableSpendingPaise)}
                 </strong>
               </span>
               <span className="text-[#D1D5DB]">•</span>
               <span>
-                In savings:{' '}
-                <strong className="text-[#0F766E] tabular-nums font-bold">
+                College Petrol Available:{' '}
+                <strong className="text-[#B45309] tabular-nums font-bold">
+                  {formatINR(petrolAccount ? petrolAccount.balance_paise : 0)}
+                </strong>
+              </span>
+              <span className="text-[#D1D5DB]">•</span>
+              <span>
+                Total Saved:{' '}
+                <strong className="text-[#065F46] tabular-nums font-bold">
                   {formatINR(summary.totalSavingsPaise)}
                 </strong>
               </span>
@@ -97,7 +114,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <>
                   <span className="text-[#D1D5DB]">•</span>
                   <span>
-                    Unallocated:{' '}
+                    Unallocated Income:{' '}
                     <strong className="text-[#B45309] tabular-nums font-bold">
                       {formatINR(summary.unallocatedPaise)}
                     </strong>
@@ -136,7 +153,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Unallocated Funds Callout */}
+        {/* Unallocated Funds Banner if any */}
         {summary.unallocatedPaise > 0 && (
           <div className="mt-6 p-4 bg-[#FAF7F2] rounded-2xl border border-[#EFE8DC] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -145,10 +162,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div>
                 <p className="text-xs font-bold text-[#713F12]">
-                  Unallocated Money: {formatINR(summary.unallocatedPaise)}
+                  Unallocated Income: {formatINR(summary.unallocatedPaise)}
                 </p>
                 <p className="text-[11px] text-[#854D0E]">
-                  You have unassigned income. Allocate it across your accounts to keep balances accurate.
+                  You have unassigned income. Allocate it directly to College Petrol or Personal Spending.
                 </p>
               </div>
             </div>
@@ -163,244 +180,344 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* 2. College Petrol Account Spotlight (Special Emphasis) */}
-      {petrolAccount && (
-        <div className="bg-[#FAF7F2] rounded-3xl border border-[#EFE8DC] p-6 shadow-xs relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-            <div className="space-y-3 flex-1">
-              {/* Header Badge */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#B45309] text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <Fuel className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
+      {/* 2. Primary Financial Accounts: College Petrol & Personal Spending */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* College Petrol Account Spotlight */}
+        {petrolAccount && (
+          <div className="bg-[#FAF7F2] rounded-3xl border border-[#EFE8DC] p-6 shadow-xs flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#B45309] text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Fuel className="w-5 h-5" />
+                  </div>
+                  <div>
                     <h3 className="text-base font-bold text-[#111318]">
                       College Petrol Account
                     </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5EEDF] text-[#854D0E] uppercase">
-                      Dedicated Commute Budget
+                    <span className="text-[10px] font-semibold text-[#854D0E]">
+                      Dedicated travel & commute fund
                     </span>
                   </div>
-                  <p className="text-xs text-[#713F12]">
-                    Available in account:{' '}
-                    <strong className="text-[#111318] tabular-nums font-bold">
-                      {formatINR(petrolAccount.balance_paise)}
-                    </strong>{' '}
-                    • {resetInfo.resetDateLabel} ({resetInfo.daysRemaining} days left)
-                  </p>
                 </div>
+
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#F5EEDF] text-[#854D0E] uppercase">
+                  Financial Account
+                </span>
               </div>
 
-              {/* 4 Quantitative Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                <div className="bg-white/90 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[10px] uppercase font-bold text-[#854D0E]">Monthly Budget</span>
-                  <p className="text-sm font-extrabold text-[#111318] tabular-nums mt-0.5">
-                    {petrolBudget ? formatINR(petrolBudget.amount_paise) : '₹2,000.00'}
+              {/* Exact 3 Financial Metrics */}
+              <div className="grid grid-cols-3 gap-2.5 pt-2">
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#EFE8DC]">
+                  <span className="text-[10px] uppercase font-bold text-[#854D0E]">Current Balance</span>
+                  <p className="text-base sm:text-lg font-black text-[#111318] tabular-nums mt-0.5">
+                    {formatINR(petrolAccount.balance_paise)}
                   </p>
                 </div>
 
-                <div className="bg-white/90 p-3 rounded-xl border border-[#EFE8DC]">
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#EFE8DC]">
                   <span className="text-[10px] uppercase font-bold text-[#854D0E]">Spent This Month</span>
-                  <p className="text-sm font-extrabold text-[#854D0E] tabular-nums mt-0.5">
-                    {formatINR(petrolOverview.spentPaise)}
+                  <p className="text-base sm:text-lg font-extrabold text-[#B45309] tabular-nums mt-0.5">
+                    {formatINR(petrolAccount.monthly_spent_paise || 0)}
                   </p>
                 </div>
 
-                <div className="bg-white/90 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[10px] uppercase font-bold text-[#854D0E]">Remaining Budget</span>
-                  <p
-                    className={`text-sm font-extrabold tabular-nums mt-0.5 ${
-                      petrolBudget?.is_exceeded ? 'text-[#DC2626]' : 'text-[#065F46]'
-                    }`}
-                  >
-                    {petrolBudget
-                      ? petrolBudget.is_exceeded
-                        ? `-${formatINR(petrolBudget.exceeded_by_paise || 0)}`
-                        : formatINR(petrolBudget.remaining_paise || 0)
-                      : '₹2,000.00'}
-                  </p>
-                </div>
-
-                <div className="bg-white/90 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[10px] uppercase font-bold text-[#854D0E]">Budget Used</span>
-                  <p
-                    className={`text-sm font-extrabold tabular-nums mt-0.5 ${
-                      (petrolBudget?.percentage || 0) > 100
-                        ? 'text-[#DC2626]'
-                        : (petrolBudget?.percentage || 0) >= 80
-                        ? 'text-[#D97706]'
-                        : 'text-[#065F46]'
-                    }`}
-                  >
-                    {petrolBudget?.percentage ?? 0}%
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#EFE8DC]">
+                  <span className="text-[10px] uppercase font-bold text-[#854D0E]">Available Money</span>
+                  <p className="text-base sm:text-lg font-black text-[#065F46] tabular-nums mt-0.5">
+                    {formatINR(petrolAccount.balance_paise)}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions for Petrol */}
-            <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0">
+            {/* Actions for College Petrol */}
+            <div className="pt-2 border-t border-[#EFE8DC] flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => onOpenExpense(petrolAccount.id)}
-                className="px-4 py-2 bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Record Petrol Refuel</span>
+                <span>Record Refuel</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenAddMoney(petrolAccount, 'add')}
+                className="px-3.5 py-2 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#B45309]" />
+                <span>Add Money</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => onOpenTransfer(undefined, petrolAccount.id)}
-                className="px-4 py-2 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="px-3 py-2 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5 text-[#B45309]" />
-                <span>Add Extra Funds</span>
+                <span>Transfer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenCloseAllocation(petrolAccount)}
+                className="px-3 py-2 bg-[#F5EEDF] hover:bg-[#EADDCE] text-[#854D0E] text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer ml-auto"
+                title="Close allocation and automatically save remaining unused money"
+              >
+                <PiggyBank className="w-3.5 h-3.5 text-[#854D0E]" />
+                <span>Close Allocation</span>
               </button>
             </div>
           </div>
+        )}
 
-          {/* Progress Bar & Warning */}
-          <div className="mt-4 pt-3 border-t border-[#EFE8DC]">
-            <div className="flex justify-between items-center text-xs mb-1.5">
-              <span className="text-[#854D0E] font-medium text-[11px]">
-                Budget Pace: {formatINR(petrolOverview.spentPaise)} of {formatINR(petrolBudget?.amount_paise || 200000)}
-              </span>
-              {petrolBudget?.is_exceeded && (
-                <span className="text-[#DC2626] font-bold text-[11px] flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  Budget Exceeded by {formatINR(petrolBudget.exceeded_by_paise || 0)}
+        {/* Personal Spending Account Spotlight */}
+        {spendingAccount && (
+          <div className="bg-[#F0F9FF] rounded-3xl border border-[#BAE6FD] p-6 shadow-xs flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#0284C7] text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#111318]">
+                      Personal Spending Account
+                    </h3>
+                    <span className="text-[10px] font-semibold text-[#0369A1]">
+                      Food, shopping & personal needs
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E0F2FE] text-[#0369A1] uppercase">
+                  Financial Account
                 </span>
-              )}
+              </div>
+
+              {/* Exact 3 Financial Metrics */}
+              <div className="grid grid-cols-3 gap-2.5 pt-2">
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#BAE6FD]">
+                  <span className="text-[10px] uppercase font-bold text-[#0369A1]">Current Balance</span>
+                  <p className="text-base sm:text-lg font-black text-[#111318] tabular-nums mt-0.5">
+                    {formatINR(spendingAccount.balance_paise)}
+                  </p>
+                </div>
+
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#BAE6FD]">
+                  <span className="text-[10px] uppercase font-bold text-[#0369A1]">Spent This Month</span>
+                  <p className="text-base sm:text-lg font-extrabold text-[#0284C7] tabular-nums mt-0.5">
+                    {formatINR(spendingAccount.monthly_spent_paise || 0)}
+                  </p>
+                </div>
+
+                <div className="bg-white/95 p-3.5 rounded-xl border border-[#BAE6FD]">
+                  <span className="text-[10px] uppercase font-bold text-[#0369A1]">Available Money</span>
+                  <p className="text-base sm:text-lg font-black text-[#065F46] tabular-nums mt-0.5">
+                    {formatINR(spendingAccount.balance_paise)}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="w-full bg-[#EADDCE] h-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  petrolBudget?.is_exceeded
-                    ? 'bg-[#DC2626]'
-                    : (petrolBudget?.percentage || 0) >= 80
-                    ? 'bg-[#D97706]'
-                    : 'bg-[#059669]'
-                }`}
-                style={{ width: `${Math.min(petrolBudget?.percentage || 0, 100)}%` }}
-              />
+
+            {/* Actions for Personal Spending */}
+            <div className="pt-2 border-t border-[#BAE6FD] flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenExpense(spendingAccount.id)}
+                className="px-3.5 py-2 bg-[#0284C7] hover:bg-[#0369A1] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Record Expense</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenAddMoney(spendingAccount, 'add')}
+                className="px-3.5 py-2 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#0284C7]" />
+                <span>Add Money</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenAddMoney(spendingAccount, 'set')}
+                className="px-3 py-2 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                title="Manually enter currently available money"
+              >
+                <span>Set Balance</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenTransfer(spendingAccount.id)}
+                className="px-3 py-2 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-[#0284C7]" />
+                <span>Transfer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenCloseAllocation(spendingAccount)}
+                className="px-3 py-2 bg-[#E0F2FE] hover:bg-[#BAE6FD] text-[#0369A1] text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer ml-auto"
+                title="Close allocation and automatically save remaining unused money"
+              >
+                <PiggyBank className="w-3.5 h-3.5 text-[#0369A1]" />
+                <span>Close Allocation</span>
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* 3. Account Cards Overview (Personal Spending, Savings, Custom) */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-            Account Balances & Limits
-          </h3>
+      {/* 3. Dedicated Savings Reference Strip */}
+      <div className="bg-gradient-to-r from-[#ECFDF5] to-[#F0FDF4] rounded-3xl border border-[#A7F3D0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#065F46] text-white flex items-center justify-center shrink-0 shadow-xs">
+            <PiggyBank className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-[#111318]">Total Money Saved</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-[#065F46] border border-[#A7F3D0] uppercase">
+                Reference Section
+              </span>
+            </div>
+            <p className="text-xs text-[#065F46] mt-0.5">
+              Accumulated from closed College Petrol and Personal Spending allocations. Not a financial account.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 self-end sm:self-auto">
+          <div className="text-right">
+            <span className="text-[10px] font-semibold text-[#065F46] uppercase block">Total Saved</span>
+            <p className="text-2xl font-black text-[#065F46] tabular-nums">
+              {formatINR(summary.totalSavingsPaise)}
+            </p>
+          </div>
           <button
             type="button"
-            onClick={() => onSelectTab('accounts')}
-            className="text-xs font-semibold text-[#065F46] hover:text-[#047857] flex items-center gap-1 cursor-pointer"
+            onClick={() => onSelectTab('savings')}
+            className="px-4 py-2 bg-[#065F46] hover:bg-[#047857] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <span>Manage accounts</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <span>View Savings</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {otherAccounts.map(acc => {
-            const isSavings = acc.type === 'savings';
-            const spent = acc.monthly_spent_paise || 0;
-            const budget = acc.budget;
-
-            return (
+      {/* 3.5. Any Custom Accounts if present */}
+      {customAccounts.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-3">
+            Custom Accounts
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {customAccounts.map(acc => (
               <div
                 key={acc.id}
-                className="bg-white rounded-2xl border border-[#EAEBED] p-5 shadow-xs hover:border-[#D1D5DB] transition-all flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-[#EAEBED] p-5 shadow-xs flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0"
                         style={{ backgroundColor: acc.color }}
                       >
                         <CategoryIcon name={acc.icon} className="w-4 h-4" />
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-[#111318]">{acc.name}</h4>
-                        <span className="text-[10px] font-semibold text-[#6B7280]">
-                          {isSavings ? 'Untouchable Reserve' : 'Everyday Expenses'}
-                        </span>
+                        <span className="text-[10px] text-[#6B7280]">Custom Account</span>
                       </div>
                     </div>
-
-                    <div className="text-right">
-                      <span className="text-[10px] text-[#6B7280] block">Balance</span>
-                      <p className="text-base font-extrabold text-[#111318] tabular-nums">
-                        {formatINR(acc.balance_paise)}
-                      </p>
-                    </div>
+                    <p className="text-base font-extrabold text-[#111318] tabular-nums">
+                      {formatINR(acc.balance_paise)}
+                    </p>
                   </div>
-
-                  {/* Budget info if applicable */}
-                  {budget ? (
-                    <div className="mt-4 pt-3 border-t border-[#F0F1F3] space-y-1">
-                      <div className="flex justify-between text-[11px] text-[#6B7280]">
-                        <span>Spent: {formatINR(spent)}</span>
-                        <span>Cap: {formatINR(budget.amount_paise)}</span>
-                      </div>
-                      <div className="w-full bg-[#E5E7EB] h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            budget.is_exceeded ? 'bg-rose-500' : 'bg-[#065F46]'
-                          }`}
-                          style={{ width: `${Math.min(budget.percentage || 0, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 pt-3 border-t border-[#F0F1F3] flex justify-between items-center text-[11px] text-[#6B7280]">
-                      <span>Spent this month:</span>
-                      <strong className="text-[#111318] tabular-nums">{formatINR(spent)}</strong>
-                    </div>
-                  )}
+                  <div className="mt-3 pt-2.5 border-t border-[#F0F1F3] flex justify-between text-xs text-[#6B7280]">
+                    <span>Spent this month:</span>
+                    <strong className="text-[#111318] tabular-nums">
+                      {formatINR(acc.monthly_spent_paise || 0)}
+                    </strong>
+                  </div>
                 </div>
 
-                {/* Account Actions */}
-                <div className="mt-4 pt-3 border-t border-[#F0F1F3] flex items-center justify-between gap-2">
-                  {!isSavings ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenExpense(acc.id)}
-                      className="flex-1 py-1 px-2 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] text-xs font-semibold text-[#1F2937] text-center border border-[#E5E7EB] cursor-pointer"
-                    >
-                      + Spend
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onOpenTransfer(undefined, acc.id)}
-                      className="flex-1 py-1 px-2 rounded-lg bg-[#ECFDF5] hover:bg-[#D1FAE5] text-xs font-semibold text-[#065F46] text-center border border-[#A7F3D0] cursor-pointer"
-                    >
-                      + Deposit
-                    </button>
-                  )}
+                <div className="mt-3 pt-2.5 border-t border-[#F0F1F3] flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenExpense(acc.id)}
+                    className="flex-1 py-1 px-2 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] text-xs font-semibold text-[#1F2937] text-center border border-[#E5E7EB] cursor-pointer"
+                  >
+                    + Spend
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAddMoney(acc, 'add')}
+                    className="flex-1 py-1 px-2 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] text-xs font-semibold text-[#1F2937] text-center border border-[#E5E7EB] cursor-pointer"
+                  >
+                    + Add Money
+                  </button>
                   <button
                     type="button"
                     onClick={() => onOpenTransfer(acc.id)}
-                    className="py-1 px-2.5 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] text-xs font-medium text-[#4B5563] border border-[#E5E7EB] cursor-pointer flex items-center gap-1"
+                    className="py-1 px-2.5 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] text-xs font-medium text-[#4B5563] border border-[#E5E7EB] cursor-pointer"
                   >
-                    <ArrowRightLeft className="w-3 h-3 text-[#6B7280]" />
-                    <span>Transfer</span>
+                    Transfer
                   </button>
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. AI Voice & Chat Advisor Banner */}
+      <div className="bg-gradient-to-r from-emerald-950 via-[#065F46] to-emerald-900 rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="space-y-1.5 relative z-10">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white uppercase tracking-wider">
+              Gemini AI Financial Companion
+            </span>
+            <span className="text-xs text-emerald-200">
+              Personalized money guidance & live voice
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-white">
+            Personal Finance Voice Assistant & AI Advisor
+          </h3>
+          <p className="text-xs text-emerald-100/80 max-w-xl">
+            Real-time awareness of your College Petrol account, Personal Spending, and closed allocation savings.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 relative z-10 shrink-0">
+          <button
+            type="button"
+            onClick={() => onSelectTab('advisor')}
+            className="px-4 py-2.5 bg-white text-[#065F46] hover:bg-emerald-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+          >
+            <Mic className="w-4 h-4 text-[#B45309]" />
+            <span>Start Live Voice</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectTab('advisor')}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Bot className="w-4 h-4" />
+            <span>Open Chatbot</span>
+          </button>
         </div>
       </div>
 
-      {/* 4. Two-Column Layout: Activity Feed & Monthly Spending Breakdown */}
+      {/* 5. Two-Column Layout: Activity Feed & Monthly Spending Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Recent Activity Feed (2 Cols) */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EAEBED] p-6 shadow-xs space-y-4">
@@ -422,19 +539,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {recentTransactions.length === 0 ? (
             <div className="p-8 text-center bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-2">
               <p className="text-xs font-bold text-[#111318]">No activity recorded yet</p>
-              <p className="text-xs text-[#6B7280]">Record an expense or income to begin building your ledger.</p>
+              <p className="text-xs text-[#6B7280]">Record an expense or add funds to begin building your ledger.</p>
               <div className="flex justify-center gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => onOpenExpense()}
-                  className="px-3 py-1.5 bg-[#065F46] text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-3.5 py-1.5 bg-[#065F46] text-white rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   Record Expense
                 </button>
                 <button
                   type="button"
                   onClick={onOpenIncome}
-                  className="px-3 py-1.5 bg-white border border-[#D1D5DB] text-[#374151] rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-3.5 py-1.5 bg-white border border-[#D1D5DB] text-[#374151] rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   Record Income
                 </button>
@@ -452,7 +569,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {group.transactions.map(tx => {
                       const isExpense = tx.type === 'expense';
                       const isIncome = tx.type === 'income_allocation';
-                      const isTransfer = tx.type === 'transfer_out' || tx.type === 'transfer_in';
+                      const isSavingsSweep = tx.type === 'savings_sweep';
+                      const isDeposit = tx.type === 'direct_deposit';
 
                       return (
                         <div
@@ -462,11 +580,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-9 h-9 rounded-xl bg-[#F3F4F6] flex items-center justify-center shrink-0">
-                              <CategoryIcon
-                                name={tx.category_icon || 'Tag'}
-                                className="w-4 h-4"
-                                color={tx.category_color}
-                              />
+                              {isSavingsSweep ? (
+                                <PiggyBank className="w-4 h-4 text-[#065F46]" />
+                              ) : isDeposit ? (
+                                <Plus className="w-4 h-4 text-[#065F46]" />
+                              ) : (
+                                <CategoryIcon
+                                  name={tx.category_icon || 'Tag'}
+                                  className="w-4 h-4"
+                                  color={tx.category_color}
+                                />
+                              )}
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-[#111318] truncate">
@@ -489,14 +613,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               className={`text-xs sm:text-sm font-extrabold tabular-nums ${
                                 isExpense
                                   ? 'text-[#111318]'
-                                  : isIncome
+                                  : isSavingsSweep
+                                  ? 'text-[#065F46]'
+                                  : isIncome || isDeposit
                                   ? 'text-[#065F46]'
                                   : 'text-[#4B5563]'
                               }`}
                             >
-                              {isExpense ? '-' : isIncome ? '+' : ''}
+                              {isExpense ? '-' : isIncome || isDeposit ? '+' : ''}
                               {formatINR(tx.amount_paise)}
                             </p>
+                            {isSavingsSweep && (
+                              <span className="text-[10px] font-semibold text-[#065F46] block">
+                                Swept to Savings
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
@@ -508,7 +639,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </div>
 
-        {/* Right: Category Spending & Cash Flow Insights (1 Col) */}
+        {/* Right: Monthly Category Spending & Cash Flow Insights (1 Col) */}
         <div className="space-y-6">
           {/* Category Breakdown Card */}
           <div className="bg-white rounded-3xl border border-[#EAEBED] p-6 shadow-xs space-y-4">
@@ -564,7 +695,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Cash Flow Summary */}
           <div className="bg-white rounded-3xl border border-[#EAEBED] p-6 shadow-xs space-y-3">
             <h4 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-              Monthly Flow Summary
+              Monthly Cash Flow
             </h4>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between items-center">

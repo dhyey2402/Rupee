@@ -3,12 +3,13 @@ import {
   LayoutDashboard,
   Wallet,
   ReceiptText,
-  Target,
+  PiggyBank,
   BarChart3,
   Settings,
   Plus,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 
@@ -45,8 +46,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
     { id: 'accounts' as NavTab, label: 'Accounts', icon: Wallet },
     { id: 'activity' as NavTab, label: 'Activity', icon: ReceiptText },
-    { id: 'budgets' as NavTab, label: 'Budgets', icon: Target },
+    { id: 'savings' as NavTab, label: 'Savings', icon: PiggyBank },
     { id: 'insights' as NavTab, label: 'Insights', icon: BarChart3 },
+    { id: 'advisor' as NavTab, label: 'AI Voice', icon: Sparkles },
     { id: 'settings' as NavTab, label: 'Settings', icon: Settings },
   ];
 
@@ -58,7 +60,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           <div className="w-7 h-7 rounded-lg bg-[#065F46] text-white flex items-center justify-center font-bold text-xs shadow-xs">
             ₹
           </div>
-          <span className="font-bold text-sm text-[#111318] tracking-tight">Money Manager</span>
+          <span className="font-bold text-sm text-[#111318] tracking-tight">Rupee.</span>
         </div>
 
         {/* Month Stepper */}

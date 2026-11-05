@@ -1,14 +1,35 @@
 export interface Account {
   id: string;
   name: string;
-  type: 'petrol' | 'spending' | 'savings' | 'custom';
+  type: 'petrol' | 'spending' | 'custom' | 'savings' | 'archived_savings';
   balance_paise: number;
+  available_money_paise?: number;
   color: string;
   icon: string;
   is_system: number;
   created_at: string;
   monthly_spent_paise?: number;
   budget?: Budget | null;
+}
+
+export interface SavingsRecord {
+  id: string;
+  amount_paise: number;
+  source_account_id?: string | null;
+  source_account_name: string;
+  date: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface SavingsSummary {
+  totalSavedPaise: number;
+  byAccount: {
+    source_account_name: string;
+    total_paise: number;
+    count: number;
+  }[];
+  records: SavingsRecord[];
 }
 
 export interface Budget {
@@ -78,7 +99,7 @@ export interface Transfer {
 
 export interface Transaction {
   id: string;
-  type: 'expense' | 'income_allocation' | 'transfer_out' | 'transfer_in';
+  type: 'expense' | 'income_allocation' | 'transfer_out' | 'transfer_in' | 'savings_sweep' | 'direct_deposit' | 'balance_adjustment';
   account_id: string;
   amount_paise: number;
   category_id?: string | null;
@@ -126,9 +147,11 @@ export interface BootstrapData {
     unallocatedPaise: number;
     totalSavingsPaise: number;
     availableSpendingPaise: number;
+    availablePetrolPaise?: number;
     monthlyIncomePaise: number;
     monthlyExpensePaise: number;
   };
+  savings: SavingsSummary;
   accounts: Account[];
   budgets: Budget[];
   categories: Category[];

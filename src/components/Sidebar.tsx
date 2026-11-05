@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   Wallet,
   ReceiptText,
-  Target,
+  PiggyBank,
   BarChart3,
   Settings,
   Plus,
@@ -13,10 +13,11 @@ import {
   TrendingUp,
   Fuel,
   Sparkles,
+  ShoppingBag,
 } from 'lucide-react';
 import { formatINR } from '../utils/format';
 
-export type NavTab = 'overview' | 'accounts' | 'activity' | 'budgets' | 'insights' | 'settings';
+export type NavTab = 'overview' | 'accounts' | 'activity' | 'savings' | 'budgets' | 'insights' | 'advisor' | 'settings';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -26,10 +27,9 @@ interface SidebarProps {
   onOpenExpense: () => void;
   onOpenIncome: () => void;
   onOpenTransfer: () => void;
-  petrolRemainingPaise?: number;
-  petrolBudgetPaise?: number;
-  petrolPercentage?: number;
-  petrolExceeded?: boolean;
+  petrolAvailablePaise?: number;
+  spendingAvailablePaise?: number;
+  totalSavedPaise?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,17 +40,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenExpense,
   onOpenIncome,
   onOpenTransfer,
-  petrolRemainingPaise = 200000,
-  petrolBudgetPaise = 200000,
-  petrolPercentage = 0,
-  petrolExceeded = false,
+  petrolAvailablePaise = 0,
+  spendingAvailablePaise = 0,
+  totalSavedPaise = 0,
 }) => {
   const navItems = [
     { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
     { id: 'accounts' as NavTab, label: 'Accounts', icon: Wallet },
     { id: 'activity' as NavTab, label: 'Activity', icon: ReceiptText },
-    { id: 'budgets' as NavTab, label: 'Budgets', icon: Target },
+    { id: 'savings' as NavTab, label: 'Savings', icon: PiggyBank },
     { id: 'insights' as NavTab, label: 'Insights', icon: BarChart3 },
+    { id: 'advisor' as NavTab, label: 'AI & Live Voice', icon: Sparkles },
     { id: 'settings' as NavTab, label: 'Settings', icon: Settings },
   ];
 
@@ -83,16 +83,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight text-[#111318]">
-              Money Manager
+              Rupee.
             </h1>
             <p className="text-[11px] text-[#6B7280] font-medium tracking-normal">
-              Private Ledger
+              Personal Finance
             </p>
           </div>
         </div>
       </div>
 
-      {/* Primary Action Button (Prominent, High-Contrast Fintech CTA) */}
+      {/* Primary Action Button */}
       <div className="px-5 pt-5 pb-3 space-y-2">
         <button
           type="button"
@@ -176,32 +176,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Petrol Budget Quick-Glance Micro-Card */}
+      {/* Financial Reserves Quick-Glance Micro-Card (No spending limits or caps) */}
       <div className="p-4 border-t border-[#F0F1F3]">
         <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#EFE8DC] space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#854D0E] flex items-center gap-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#854D0E]">
+            <span className="flex items-center gap-1.5">
               <Fuel className="w-3.5 h-3.5 text-[#B45309]" />
-              College Petrol
+              Petrol Available
             </span>
-            <span className={`text-[10px] font-bold tabular-nums ${petrolExceeded ? 'text-[#DC2626]' : 'text-[#854D0E]'}`}>
-              {petrolPercentage}%
+            <span className="tabular-nums text-[#111318]">
+              {formatINR(petrolAvailablePaise)}
             </span>
           </div>
 
-          <div className="w-full bg-[#EADDCE] h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                petrolExceeded ? 'bg-[#DC2626]' : petrolPercentage >= 80 ? 'bg-[#D97706]' : 'bg-[#059669]'
-              }`}
-              style={{ width: `${Math.min(petrolPercentage, 100)}%` }}
-            />
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#0369A1] pt-1 border-t border-[#EFE8DC]">
+            <span className="flex items-center gap-1.5">
+              <ShoppingBag className="w-3.5 h-3.5 text-[#0ea5e9]" />
+              Personal Available
+            </span>
+            <span className="tabular-nums text-[#111318]">
+              {formatINR(spendingAvailablePaise)}
+            </span>
           </div>
 
-          <div className="flex justify-between items-center text-[10px] text-[#713F12]">
-            <span>{petrolExceeded ? 'Exceeded' : 'Remaining'}</span>
-            <span className="font-bold tabular-nums text-[#1F2937]">
-              {formatINR(petrolRemainingPaise)}
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#065F46] pt-1 border-t border-[#EFE8DC]">
+            <span className="flex items-center gap-1.5">
+              <PiggyBank className="w-3.5 h-3.5 text-[#065F46]" />
+              Total Saved
+            </span>
+            <span className="tabular-nums text-[#065F46]">
+              {formatINR(totalSavedPaise)}
             </span>
           </div>
         </div>

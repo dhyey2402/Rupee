@@ -37,6 +37,8 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
 
   const sources = ['IT work', 'Pocket money', 'Family', 'Salary', 'Freelance', 'Other'];
 
+  const allocatableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
+
   useEffect(() => {
     if (isOpen) {
       setAmountStr('');
@@ -47,7 +49,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
       setError(null);
 
       const initAllocs: Record<string, string> = {};
-      accounts.forEach(a => {
+      allocatableAccounts.forEach(a => {
         initAllocs[a.id] = '';
       });
       setAllocations(initAllocs);
@@ -68,31 +70,29 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
     ? Math.min(Math.round((totalAllocatedPaise / totalIncomePaise) * 100), 100)
     : 0;
 
-  // Preset 1: Student Commute Scenario (₹5,000 -> 2k Petrol, 2k Spending, 1k Savings)
+  // Preset 1: Standard IT work Scenario (₹5,000 -> ₹2,000 Petrol, ₹3,000 Personal Spending)
   const handlePresetStudentSplit = () => {
-    const petrolAcc = accounts.find(a => a.type === 'petrol');
-    const spendingAcc = accounts.find(a => a.type === 'spending');
-    const savingsAcc = accounts.find(a => a.type === 'savings');
+    const petrolAcc = allocatableAccounts.find(a => a.type === 'petrol');
+    const spendingAcc = allocatableAccounts.find(a => a.type === 'spending');
 
     setAmountStr('5000');
     setSource('IT work');
-    setDescription('Freelance Web Development Project');
+    setDescription('IT work allocation');
 
     const newAllocs: Record<string, string> = {};
-    accounts.forEach(a => {
+    allocatableAccounts.forEach(a => {
       if (a.id === petrolAcc?.id) newAllocs[a.id] = '2000';
-      else if (a.id === spendingAcc?.id) newAllocs[a.id] = '2000';
-      else if (a.id === savingsAcc?.id) newAllocs[a.id] = '1000';
+      else if (a.id === spendingAcc?.id) newAllocs[a.id] = '3000';
       else newAllocs[a.id] = '0';
     });
     setAllocations(newAllocs);
   };
 
   const handleEqualSplit = () => {
-    if (totalIncomePaise <= 0 || accounts.length === 0) return;
-    const splitPaise = Math.floor(totalIncomePaise / accounts.length);
+    if (totalIncomePaise <= 0 || allocatableAccounts.length === 0) return;
+    const splitPaise = Math.floor(totalIncomePaise / allocatableAccounts.length);
     const newAllocs: Record<string, string> = {};
-    accounts.forEach(a => {
+    allocatableAccounts.forEach(a => {
       newAllocs[a.id] = (splitPaise / 100).toFixed(2);
     });
     setAllocations(newAllocs);
@@ -319,7 +319,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
 
               {/* Account Allocation Rows */}
               <div className="space-y-2">
-                {accounts.map(acc => {
+                {allocatableAccounts.map(acc => {
                   const val = allocations[acc.id] || '';
                   return (
                     <div

@@ -29,8 +29,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onLoadDemo,
   onResetApp,
 }) => {
-  const currentPetrolPaise = parseInt(settings.petrol_monthly_budget_paise || '200000', 10);
-  const [petrolBudgetStr, setPetrolBudgetStr] = useState((currentPetrolPaise / 100).toString());
   const [allowOverdraft, setAllowOverdraft] = useState(settings.allow_overdraft === 'true');
 
   const [savingSettings, setSavingSettings] = useState(false);
@@ -80,13 +78,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setSavedSuccess(false);
 
     try {
-      const budgetPaise = inrToPaise(petrolBudgetStr);
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'petrol_monthly_budget_paise', value: String(budgetPaise) }),
-      });
-
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +101,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const jsonStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2));
         const dlAnchor = document.createElement('a');
         dlAnchor.setAttribute('href', jsonStr);
-        dlAnchor.setAttribute('download', `money_manager_backup_${new Date().toISOString().split('T')[0]}.json`);
+        dlAnchor.setAttribute('download', `rupee_backup_${new Date().toISOString().split('T')[0]}.json`);
         document.body.appendChild(dlAnchor);
         dlAnchor.click();
         dlAnchor.remove();
@@ -194,34 +185,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Financial Rules Form */}
       <form onSubmit={handleSavePreferences} className="bg-white rounded-3xl border border-[#EAEBED] p-6 sm:p-7 shadow-xs space-y-5">
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#6B7280]">
-          Core Budget Configuration
+          Financial Safety Policies
         </h3>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-[#111318] mb-1.5 flex items-center gap-1.5">
-              <Fuel className="w-4 h-4 text-[#B45309]" />
-              Monthly College Petrol Budget (INR)
-            </label>
-            <div className="relative max-w-xs">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] font-bold text-sm">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="1"
-                required
-                value={petrolBudgetStr}
-                onChange={e => setPetrolBudgetStr(e.target.value)}
-                className="w-full pl-8 pr-4 py-2 rounded-xl border border-[#D1D5DB] text-[#111318] font-bold text-sm tabular-nums focus:border-[#065F46] outline-none"
-              />
-            </div>
-            <p className="text-[11px] text-[#6B7280] mt-1">
-              Default is ₹2,000 per month. The budget resets automatically on the 1st of every calendar month.
-            </p>
-          </div>
-
-          <div className="pt-3 border-t border-[#F0F1F3] flex items-start gap-3">
+          <div className="flex items-start gap-3">
             <input
               type="checkbox"
               id="overdraftToggle"
@@ -380,7 +348,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Student Demo Scenario
               </h4>
               <p className="text-[11px] text-[#713F12] mt-0.5">
-                Loads the verified student scenario: ₹5,000 IT income distributed across 3 accounts, petrol refuels, personal shopping, and a transfer.
+                Loads the student scenario: ₹5,000 IT income allocated between College Petrol (₹2,000) and Personal Spending (₹3,000), petrol refuels, personal expenses, and allocation closeouts to Savings.
               </p>
             </div>
             <button
@@ -399,7 +367,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Factory Clean Reset
               </h4>
               <p className="text-[11px] text-rose-800 mt-0.5">
-                Clears all transactions and initializes the 3 core accounts (College Petrol ₹2,000 budget, Personal Spending, Savings) with pristine ₹0 balances.
+                Clears all transactions and initializes the College Petrol and Personal Spending accounts with clean ₹0 balances.
               </p>
             </div>
             <button
@@ -422,7 +390,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <h3 className="text-base font-bold text-[#111318]">Confirm Factory Reset</h3>
             </div>
             <p className="text-xs text-[#4B5563] leading-relaxed">
-              Are you sure you want to reset the application? All recorded transactions and custom accounts will be removed. The core College Petrol (₹2,000 monthly cap), Personal Spending, and Savings accounts will be reset to ₹0 balances.
+              Are you sure you want to reset the application? All recorded transactions and custom accounts will be removed. The College Petrol and Personal Spending accounts will be reset to ₹0 balances, and Savings records will be cleared.
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button

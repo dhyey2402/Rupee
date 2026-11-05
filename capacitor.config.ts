@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.mymoneymanager.app',
-  appName: 'My Money Manager',
+  appId: 'com.rupee.app',
+  appName: 'Rupee.',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

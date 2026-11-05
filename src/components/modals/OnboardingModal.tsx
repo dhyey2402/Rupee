@@ -18,7 +18,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [step, setStep] = useState<'welcome' | 'balances'>('welcome');
   const [petrolBalance, setPetrolBalance] = useState('');
   const [spendingBalance, setSpendingBalance] = useState('');
-  const [savingsBalance, setSavingsBalance] = useState('');
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,16 +49,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     try {
       const pPaise = inrToPaise(petrolBalance);
       const sPaise = inrToPaise(spendingBalance);
-      const savPaise = inrToPaise(savingsBalance);
 
-      const totalInitial = pPaise + sPaise + savPaise;
+      const totalInitial = pPaise + sPaise;
 
       if (totalInitial > 0) {
         const today = new Date().toISOString().split('T')[0];
         const allocations = [];
         if (pPaise > 0) allocations.push({ accountId: 'acc-petrol', amountPaise: pPaise });
         if (sPaise > 0) allocations.push({ accountId: 'acc-spending', amountPaise: sPaise });
-        if (savPaise > 0) allocations.push({ accountId: 'acc-savings', amountPaise: savPaise });
 
         await fetch('/api/incomes', {
           method: 'POST',
@@ -113,7 +110,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold text-[#111318] tracking-tight">
-                  My Money Manager
+                  Rupee.
                 </h2>
                 <p className="text-xs text-[#717680] max-w-sm mx-auto mt-1">
                   Dedicated personal finance system with independent accounts for College Petrol, Personal Spending, and Savings.
@@ -121,21 +118,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </div>
             </div>
 
-            {/* 3 Core Accounts Showcase */}
+            {/* 3 Core Highlights Showcase */}
             <div className="space-y-2.5">
               <div className="flex items-center gap-3.5 p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAEBED]">
                 <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-[#B45309] flex items-center justify-center shrink-0">
                   <Fuel className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-[#111318]">College Petrol</h4>
-                    <span className="text-[10px] font-mono font-medium text-[#B45309]">
-                      ₹2,000 / mo budget
-                    </span>
-                  </div>
+                  <h4 className="text-xs font-bold text-[#111318]">College Petrol Account</h4>
                   <p className="text-[11px] text-[#717680] mt-0.5">
-                    Dedicated exclusively for college fuel. Resets at month start.
+                    Dedicated exclusively for college travel. Holds allocated money until spent or closed out.
                   </p>
                 </div>
               </div>
@@ -145,9 +137,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   <ShoppingBag className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-[#111318]">Personal Spending</h4>
+                  <h4 className="text-xs font-bold text-[#111318]">Personal Spending Account</h4>
                   <p className="text-[11px] text-[#717680] mt-0.5">
-                    Everyday food, shopping, canteen, and personal expenses.
+                    Everyday food, shopping, canteen, and personal expenses. No spending limit.
                   </p>
                 </div>
               </div>
@@ -157,9 +149,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   <PiggyBank className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-[#111318]">Savings Account</h4>
+                  <h4 className="text-xs font-bold text-[#111318]">Savings Reference</h4>
                   <p className="text-[11px] text-[#717680] mt-0.5">
-                    Kept aside safely and excluded from available spending balance.
+                    Automatically accumulates unspent money when you close out an allocation.
                   </p>
                 </div>
               </div>
@@ -248,26 +240,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     placeholder="0.00"
                     value={spendingBalance}
                     onChange={e => setSpendingBalance(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-[#EAEBED] bg-white text-[#111318] text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-[#065F46]/20 focus:border-[#065F46]"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#EAEBED]">
-                <label className="block text-xs font-semibold text-[#111318] mb-1.5 flex items-center gap-1.5">
-                  <PiggyBank className="w-3.5 h-3.5 text-teal-600" />
-                  Savings Starting Balance
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#717680] font-mono font-bold text-xs">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={savingsBalance}
-                    onChange={e => setSavingsBalance(e.target.value)}
                     className="w-full pl-7 pr-3 py-2 rounded-lg border border-[#EAEBED] bg-white text-[#111318] text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-[#065F46]/20 focus:border-[#065F46]"
                   />
                 </div>

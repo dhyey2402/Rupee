@@ -1,10 +1,12 @@
 import express from 'express';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { initDatabase } from './server/db.js';
 import { apiRouter } from './server/api.js';
+import { setupGeminiLiveServer } from './server/gemini.js';
 
 dotenv.config();
 
@@ -51,9 +53,14 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
+ 
+  const httpServer = http.createServer(app);
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`My Money Manager server running on http://localhost:${PORT}`);
+  // Setup WebSocket server for Gemini Live API real-time voice conversations
+  setupGeminiLiveServer(httpServer);
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`Rupee. server running on http://localhost:${PORT}`);
   });
 }
 
