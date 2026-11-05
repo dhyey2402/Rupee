@@ -26,7 +26,6 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
 }) => {
   const [amountStr, setAmountStr] = useState('');
   const [source, setSource] = useState('IT work');
-  const [customSource, setCustomSource] = useState('');
   const [date, setDate] = useState(getTodayDateString());
   const [description, setDescription] = useState('');
 
@@ -35,15 +34,12 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sources = ['IT work', 'Pocket money', 'Family', 'Salary', 'Freelance', 'Other'];
-
   const allocatableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
 
   useEffect(() => {
     if (isOpen) {
       setAmountStr('');
       setSource('IT work');
-      setCustomSource('');
       setDate(getTodayDateString());
       setDescription('');
       setError(null);
@@ -70,7 +66,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
     ? Math.min(Math.round((totalAllocatedPaise / totalIncomePaise) * 100), 100)
     : 0;
 
-  // Preset 1: Standard IT work Scenario (₹5,000 -> ₹2,000 Petrol, ₹3,000 Personal Spending)
+  // Preset 1: Standard IT work Scenario (â‚¹5,000 -> â‚¹2,000 Petrol, â‚¹3,000 Personal Spending)
   const handlePresetStudentSplit = () => {
     const petrolAcc = allocatableAccounts.find(a => a.type === 'petrol');
     const spendingAcc = allocatableAccounts.find(a => a.type === 'spending');
@@ -124,7 +120,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
       return;
     }
 
-    const finalSource = source === 'Other' && customSource.trim() ? customSource.trim() : source;
+    const finalSource = source.trim() || 'Income';
 
     const allocationPayload: { accountId: string; amountPaise: number }[] = [];
     accounts.forEach(acc => {
@@ -199,7 +195,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
                 Income Amount Received (INR)
               </label>
               <div className="flex items-center justify-center gap-1">
-                <span className="text-2xl sm:text-3xl font-extrabold text-[#15803D]">₹</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-[#15803D]">â‚¹</span>
                 <input
                   type="number"
                   step="0.01"
@@ -216,19 +212,16 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#374151] mb-1">
-                  Income Source
+                  Income Source <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. IT work, Salary, Pocket money"
                   value={source}
                   onChange={e => setSource(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#D1D5DB] bg-white text-xs font-medium text-[#111318] focus:border-[#065F46] outline-none"
-                >
-                  {sources.map(s => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#D1D5DB] text-xs font-medium text-[#111318] focus:border-[#065F46] outline-none"
+                />
               </div>
 
               <div>
@@ -279,7 +272,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
                     className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] text-[#854D0E] border border-[#EFE8DC] text-[10px] font-bold hover:bg-[#F5EEDF] transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="w-3 h-3 text-[#B45309]" />
-                    <span>₹5k Student Split</span>
+                    <span>â‚¹5k Student Split</span>
                   </button>
                   <button
                     type="button"
@@ -342,7 +335,7 @@ export const RecordIncomeModal: React.FC<RecordIncomeModalProps> = ({
                       <div className="flex items-center gap-1.5">
                         <div className="relative w-28 sm:w-32">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#9CA3AF]">
-                            ₹
+                            â‚¹
                           </span>
                           <input
                             type="number"

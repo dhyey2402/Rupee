@@ -24,13 +24,10 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
   const [targetBalanceStr, setTargetBalanceStr] = useState('');
   const [isNewIncome, setIsNewIncome] = useState(false);
   const [source, setSource] = useState('IT work');
-  const [customSource, setCustomSource] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(getTodayDateString());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const sources = ['IT work', 'Pocket money', 'Personal Allowance', 'Salary', 'Family', 'Other'];
 
   useEffect(() => {
     if (isOpen && account) {
@@ -39,7 +36,6 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
       setTargetBalanceStr((account.balance_paise / 100).toFixed(2));
       setIsNewIncome(false);
       setSource('IT work');
-      setCustomSource('');
       setDescription('');
       setDate(getTodayDateString());
       setError(null);
@@ -59,7 +55,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
     setLoading(true);
     setError(null);
 
-    const actualSource = source === 'Other' && customSource.trim() ? customSource.trim() : source;
+    const actualSource = source.trim() || 'Income';
 
     try {
       const res = await fetch(apiUrl(`/api/accounts/${account.id}/add-money`), {
@@ -140,7 +136,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
                 {mode === 'add' ? 'Add Money' : 'Set Available Balance'}
               </h2>
               <p className="text-xs text-[#6B7280]">
-                {account.name} • Current: <strong>{formatINR(account.balance_paise)}</strong>
+                {account.name} â€¢ Current: <strong>{formatINR(account.balance_paise)}</strong>
               </p>
             </div>
           </div>
@@ -197,7 +193,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
                   Amount to Add
                 </label>
                 <div className="flex items-center justify-center gap-1">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-[#9CA3AF]">₹</span>
+                  <span className="text-2xl sm:text-3xl font-extrabold text-[#9CA3AF]">â‚¹</span>
                   <input
                     type="number"
                     step="0.01"
@@ -247,33 +243,16 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
               {isNewIncome && (
                 <div>
                   <label className="block text-xs font-semibold text-[#374151] mb-1">
-                    Income Source
+                    Income Source <span className="text-rose-500">*</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5 mb-2">
-                    {sources.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSource(s)}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer truncate ${
-                          source === s
-                            ? 'border-[#065F46] bg-[#ECFDF5] text-[#065F46]'
-                            : 'border-[#E5E7EB] bg-white text-[#4B5563]'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                  {source === 'Other' && (
-                    <input
-                      type="text"
-                      placeholder="Specify income source"
-                      value={customSource}
-                      onChange={e => setCustomSource(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg border border-[#D1D5DB] text-xs text-[#111318] outline-none"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. IT work, Salary, Allowance"
+                    value={source}
+                    onChange={e => setSource(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-[#D1D5DB] text-xs font-medium text-[#111318] focus:border-[#065F46] outline-none"
+                  />
                 </div>
               )}
 
@@ -315,7 +294,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
                   Current Available Balance
                 </label>
                 <div className="flex items-center justify-center gap-1">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-[#9CA3AF]">₹</span>
+                  <span className="text-2xl sm:text-3xl font-extrabold text-[#9CA3AF]">â‚¹</span>
                   <input
                     type="number"
                     step="0.01"
@@ -330,13 +309,13 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({
 
               <div className="p-3 bg-[#F0FDF4] rounded-xl border border-[#DCFCE7] text-[11px] text-[#14532D] leading-relaxed">
                 <p>
-                  • Enter the actual money you currently have available for <strong>{account.name}</strong>.
+                  â€¢ Enter the actual money you currently have available for <strong>{account.name}</strong>.
                 </p>
                 <p className="mt-1">
-                  • This amount will remain available across months until you spend it or close the allocation.
+                  â€¢ This amount will remain available across months until you spend it or close the allocation.
                 </p>
                 <p className="mt-1">
-                  • Does not count as additional income, preventing double-counting.
+                  â€¢ Does not count as additional income, preventing double-counting.
                 </p>
               </div>
 
