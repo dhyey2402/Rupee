@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { initDatabase } from './server/db.js';
 import { apiRouter } from './server/api.js';
 import { setupGeminiLiveServer } from './server/gemini.js';
+import { initTursoSync, scheduleTursoSync } from './server/turso.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,7 @@ async function startServer() {
 
   // Initialize SQLite database
   initDatabase();
+  await initTursoSync();
 
   // Enable CORS for mobile app and external clients
   app.use((req, res, next) => {
@@ -32,6 +34,21 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // Mount API router
+  app.use((req, res, next) => {
+    res.on('finish', () => {
+      if (
+        ['POST', 'PUT', 'DELETE'].includes(req.method) &&
+        res.statusCode >= 200 &&
+        res.statusCode < 300 &&
+        req.path.startsWith('/api') &&
+        !req.path.includes('/gemini')
+      ) {
+        scheduleTursoSync();
+      }
+    });
+    next();
+  });
+
   app.use('/api', apiRouter);
 
   // Health check endpoint
