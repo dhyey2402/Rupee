@@ -1,14 +1,12 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
 import { initDatabase } from './server/db.js';
 import { apiRouter } from './server/api.js';
 import { setupGeminiLiveServer } from './server/gemini.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

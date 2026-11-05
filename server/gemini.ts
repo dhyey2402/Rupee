@@ -1,15 +1,22 @@
+import 'dotenv/config';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server as HttpServer } from 'http';
 import { db } from './db.js';
 
-// Initialize server-side Gemini client with required User-Agent
-export const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
+// Initialize server-side Gemini client with dynamic API key resolution
+export const ai = new Proxy({} as GoogleGenAI, {
+  get(_target, prop) {
+    const instance = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || '',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+    const val = (instance as any)[prop];
+    return typeof val === 'function' ? val.bind(instance) : val;
   },
 });
 
