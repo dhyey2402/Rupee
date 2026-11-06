@@ -68,10 +68,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   }, [activeAccount?.id]);
 
   const totalBalancePaise = financialAccounts.reduce((sum, a) => sum + a.balance_paise, 0);
+  const bankAcc = financialAccounts.find(a => a.type === 'bank');
   const spendingAcc = financialAccounts.find(a => a.type === 'spending');
-  const petrolAcc = financialAccounts.find(a => a.type === 'petrol');
+  const cashAcc = financialAccounts.find(a => a.type === 'cash');
+  const bankPaise = bankAcc ? bankAcc.balance_paise : 0;
   const spendingPaise = spendingAcc ? spendingAcc.balance_paise : 0;
-  const petrolPaise = petrolAcc ? petrolAcc.balance_paise : 0;
+  const cashPaise = cashAcc ? cashAcc.balance_paise : 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -82,7 +84,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             Financial Accounts
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
-            Primary financial accounts: College Petrol and Personal Spending with independent balances
+            Primary financial accounts: Bank Account, Personal Spending, and Cash with independent balances
           </p>
         </div>
 
@@ -107,9 +109,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       </div>
 
       {/* Aggregate Balance Callout Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">Total Money Across Accounts</span>
+          <span className="text-xs font-semibold text-[#6B7280]">Total Across Accounts</span>
           <p className="text-2xl font-black text-[#111318] tabular-nums mt-1">
             {formatINR(totalBalancePaise)}
           </p>
@@ -117,19 +119,27 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">Personal Spending Available</span>
-          <p className="text-2xl font-black text-[#0ea5e9] tabular-nums mt-1">
-            {formatINR(spendingPaise)}
+          <span className="text-xs font-semibold text-[#0284c7]">Bank Account</span>
+          <p className="text-2xl font-black text-[#0284c7] tabular-nums mt-1">
+            {formatINR(bankPaise)}
           </p>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Available for everyday personal needs</p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Actual bank account balance</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
-          <span className="text-xs font-semibold text-[#6B7280]">College Petrol Available</span>
-          <p className="text-2xl font-black text-[#B45309] tabular-nums mt-1">
-            {formatINR(petrolPaise)}
+          <span className="text-xs font-semibold text-[#065F46]">Personal Spending</span>
+          <p className="text-2xl font-black text-[#065F46] tabular-nums mt-1">
+            {formatINR(spendingPaise)}
           </p>
-          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Available for college commute travel</p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Allocated for personal expenses</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-[#EAEBED] shadow-xs">
+          <span className="text-xs font-semibold text-[#059669]">Cash</span>
+          <p className="text-2xl font-black text-[#059669] tabular-nums mt-1">
+            {formatINR(cashPaise)}
+          </p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Physical wallet cash in hand</p>
         </div>
       </div>
 
@@ -169,7 +179,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                           <h4 className="text-sm font-bold text-[#111318]">{acc.name}</h4>
                         </div>
                         <p className="text-xs text-[#6B7280]">
-                          {isPetrol ? 'College Travel Fund' : 'Everyday Spending'}
+                          {acc.type === 'bank' ? 'Bank Account' : acc.type === 'spending' ? 'Personal Spending' : acc.type === 'cash' ? 'Cash in Hand' : 'Custom Account'}
                         </p>
                       </div>
                     </div>

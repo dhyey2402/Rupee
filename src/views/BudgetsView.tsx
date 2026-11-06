@@ -37,8 +37,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const resetInfo = getBudgetResetInfo(selectedMonth);
 
-  const petrolBudget = budgets.find(b => b.linked_account_id === 'acc-petrol');
-  const otherBudgets = budgets.filter(b => b.linked_account_id !== 'acc-petrol');
+  const petrolBudget = budgets.find(b => b.category_id === 'cat-petrol' || b.name.toLowerCase().includes('petrol'));
+  const otherBudgets = budgets.filter(b => b.id !== petrolBudget?.id);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">

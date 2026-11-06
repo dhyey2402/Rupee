@@ -268,8 +268,9 @@ export default function App() {
         onOpenExpense={() => handleOpenExpense()}
         onOpenIncome={() => setIsIncomeModalOpen(true)}
         onOpenTransfer={() => handleOpenTransfer()}
-        petrolAvailablePaise={data?.summary?.availablePetrolPaise ?? 0}
+        bankAvailablePaise={data?.summary?.availableBankPaise ?? 0}
         spendingAvailablePaise={data?.summary?.availableSpendingPaise ?? 0}
+        cashAvailablePaise={data?.summary?.availableCashPaise ?? 0}
         totalSavedPaise={data?.summary?.totalSavingsPaise ?? 0}
       />
 

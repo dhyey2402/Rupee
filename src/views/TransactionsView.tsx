@@ -37,9 +37,35 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [filterAccount, setFilterAccount] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  const monthsList = [
+    { value: '', label: 'All Months' },
+    { value: '2026-11', label: 'Nov 2026' },
+    { value: '2026-10', label: 'Oct 2026' },
+    { value: '2026-09', label: 'Sep 2026' },
+    { value: '2026-08', label: 'Aug 2026' },
+    { value: '2026-07', label: 'Jul 2026' },
+  ];
+
+  const handleMonthSelect = (mStr: string) => {
+    setFilterMonth(mStr);
+    if (!mStr) {
+      setStartDate('');
+      setEndDate('');
+    } else {
+      const [y, m] = mStr.split('-').map(Number);
+      const start = `${mStr}-01`;
+      const nextMonth = new Date(y, m, 1);
+      const lastDay = new Date(nextMonth.getTime() - 86400000).getDate();
+      const end = `${mStr}-${String(lastDay).padStart(2, '0')}`;
+      setStartDate(start);
+      setEndDate(end);
+    }
+  };
 
   const fetchTransactions = () => {
     setLoading(true);
@@ -50,7 +76,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     if (filterCategory) params.append('categoryId', filterCategory);
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
-    params.append('limit', '200');
+    params.append('limit', '500');
 
     fetch(`/api/transactions?${params.toString()}`)
       .then(res => res.json())
@@ -75,9 +101,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setFilterAccount('');
     setFilterType('');
     setFilterCategory('');
+    setFilterMonth('');
     setStartDate('');
     setEndDate('');
-    fetch('/api/transactions?limit=200')
+    fetch('/api/transactions?limit=500')
       .then(res => res.json())
       .then(data => setTransactions(data));
   };
@@ -86,8 +113,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     window.location.href = '/api/export/csv';
   };
 
-  const hasActiveFilters = Boolean(filterAccount || filterType || filterCategory || startDate || endDate);
+  const hasActiveFilters = Boolean(filterAccount || filterType || filterCategory || filterMonth || startDate || endDate);
   const groupedData = groupTransactionsByDate(transactions);
+
+  // Financial totals for currently displayed/filtered records
+  const totalFilteredExpensePaise = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount_paise, 0);
+
+  const totalFilteredIncomePaise = transactions
+    .filter(t => t.type === 'income_allocation')
+    .reduce((sum, t) => sum + t.amount_paise, 0);
+
+  const expenseCount = transactions.filter(t => t.type === 'expense').length;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
@@ -132,6 +170,30 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* Search & Filter Controls */}
       <div className="bg-white rounded-3xl border border-[#EAEBED] p-4 sm:p-5 shadow-xs space-y-3.5">
+        {/* Quick Month Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <span className="text-[11px] font-semibold text-[#6B7280] mr-1 shrink-0 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5" /> Month:
+          </span>
+          {monthsList.map(m => {
+            const isSelected = filterMonth === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => handleMonthSelect(m.value)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#065F46] text-white shadow-xs'
+                    : 'bg-[#F3F4F6] text-[#4B5563] hover:bg-[#E5E7EB]'
+                }`}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+
         <form onSubmit={handleSearchSubmit} className="flex gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -152,7 +214,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </form>
 
         {showFilters && (
-          <div className="pt-3 border-t border-[#F0F1F3] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in duration-150">
+          <div className="pt-3 border-t border-[#F0F1F3] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 animate-in fade-in duration-150">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#4B5563] mb-1">Month</label>
+              <select
+                value={filterMonth}
+                onChange={e => handleMonthSelect(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-[#D1D5DB] bg-white text-xs text-[#111318] outline-none"
+              >
+                {monthsList.map(m => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-[11px] font-semibold text-[#4B5563] mb-1">Account</label>
               <select
@@ -212,6 +289,54 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Monthly Expense & Income Totals Callout Banner */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-[#EAEBED] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block">
+              {filterMonth ? `${monthsList.find(m => m.value === filterMonth)?.label} Expenses` : 'Total Expenses'}
+            </span>
+            <p className="text-xl font-black text-[#111318] tabular-nums mt-0.5">
+              {formatINR(totalFilteredExpensePaise)}
+            </p>
+          </div>
+          <span className="text-xs px-2.5 py-1 bg-[#FEE2E2] text-[#991B1B] font-bold rounded-lg">
+            {expenseCount} items
+          </span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-[#EAEBED] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block">
+              {filterMonth ? `${monthsList.find(m => m.value === filterMonth)?.label} Income` : 'Total Income'}
+            </span>
+            <p className="text-xl font-black text-[#065F46] tabular-nums mt-0.5">
+              {formatINR(totalFilteredIncomePaise)}
+            </p>
+          </div>
+          <span className="text-xs px-2.5 py-1 bg-[#ECFDF5] text-[#065F46] font-bold rounded-lg">
+            Deposited
+          </span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-[#EAEBED] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block">
+              Net Flow
+            </span>
+            <p className={`text-xl font-black tabular-nums mt-0.5 ${
+              totalFilteredIncomePaise >= totalFilteredExpensePaise ? 'text-[#065F46]' : 'text-[#B45309]'
+            }`}>
+              {totalFilteredIncomePaise >= totalFilteredExpensePaise ? '+' : '-'}
+              {formatINR(Math.abs(totalFilteredIncomePaise - totalFilteredExpensePaise))}
+            </p>
+          </div>
+          <span className="text-xs px-2.5 py-1 bg-[#F3F4F6] text-[#4B5563] font-bold rounded-lg">
+            {transactions.length} total
+          </span>
+        </div>
       </div>
 
       {/* Activity Feed Grouped by Date */}

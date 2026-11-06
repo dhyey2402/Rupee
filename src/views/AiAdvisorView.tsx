@@ -367,8 +367,8 @@ export const AiAdvisorView: React.FC<AiAdvisorViewProps> = ({ data, initialMode 
     ],
   };
 
-  const petrolAcc = data.accounts.find(a => a.type === 'petrol');
-  const petrolBudget = data.budgets.find(b => b.linked_account_id === 'acc-petrol' || b.name.toLowerCase().includes('petrol'));
+  const bankAcc = data.accounts.find(a => a.type === 'bank');
+  const petrolBudget = data.budgets.find(b => b.category_id === 'cat-petrol' || b.name.toLowerCase().includes('petrol'));
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

@@ -38,14 +38,14 @@ apiRouter.get('/bootstrap', (req, res) => {
     const monthQuery = typeof req.query.month === 'string' ? req.query.month : undefined;
     const { startDate, endDate, monthKey } = getMonthBounds(monthQuery);
 
-    // Accounts (only active financial accounts: College Petrol, Personal Spending, and custom)
-    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('petrol', 'spending', 'custom') ORDER BY created_at ASC").all() as any[];
+    // Accounts (only active financial accounts: Bank Account, Personal Spending, Cash, and custom)
+    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('bank', 'spending', 'cash', 'custom') ORDER BY created_at ASC").all() as any[];
 
     // Categories
     const categories = db.prepare('SELECT * FROM categories ORDER BY type, name ASC').all() as any[];
 
     // Budgets (excluding any legacy account spending limits)
-    const budgets = db.prepare("SELECT * FROM budgets WHERE is_paused = 0 AND (linked_account_id IS NULL OR linked_account_id NOT IN ('acc-petrol', 'acc-spending'))").all() as any[];
+    const budgets = db.prepare("SELECT * FROM budgets WHERE is_paused = 0 AND (linked_account_id IS NULL OR linked_account_id NOT IN ('acc-bank', 'acc-spending', 'acc-cash', 'acc-petrol'))").all() as any[];
 
     // Settings
     const settingsRows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
@@ -76,7 +76,7 @@ apiRouter.get('/bootstrap', (req, res) => {
     const monthlyExpensePaise = (monthlyExpenseStmt.get(startDate, endDate) as any).total || 0;
 
     // Total money across all financial accounts:
-    const totalBalanceStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type IN ('petrol', 'spending', 'custom')");
+    const totalBalanceStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type IN ('bank', 'spending', 'cash', 'custom')");
     const totalAccountBalancePaise = (totalBalanceStmt.get() as any).total || 0;
     const totalMoneyPaise = totalAccountBalancePaise + unallocatedPaise;
 
@@ -94,10 +94,12 @@ apiRouter.get('/bootstrap', (req, res) => {
     const savingsRecords = db.prepare('SELECT * FROM savings_records ORDER BY date DESC, created_at DESC LIMIT 20').all() as any[];
 
     // Primary account balances
+    const bankAcc = accounts.find((a: any) => a.type === 'bank');
     const spendingAcc = accounts.find((a: any) => a.type === 'spending');
-    const petrolAcc = accounts.find((a: any) => a.type === 'petrol');
+    const cashAcc = accounts.find((a: any) => a.type === 'cash');
+    const availableBankPaise = bankAcc ? bankAcc.balance_paise : 0;
     const availableSpendingPaise = spendingAcc ? spendingAcc.balance_paise : 0;
-    const availablePetrolPaise = petrolAcc ? petrolAcc.balance_paise : 0;
+    const availableCashPaise = cashAcc ? cashAcc.balance_paise : 0;
 
     // Calculate budget utilization for categories if any exist
     const budgetListWithStats = budgets.map((b: any) => {
@@ -169,12 +171,12 @@ apiRouter.get('/bootstrap', (req, res) => {
     `);
     const categoryBreakdown = categoryBreakdownStmt.all(startDate, endDate);
 
-    // Petrol specific monthly summary (no spending limits or budget pace)
+    // Petrol specific monthly summary (Petrol is an expense category tracked across accounts)
     const petrolSpentStmt = db.prepare(`
       SELECT COALESCE(SUM(t.amount_paise), 0) as spent, COUNT(t.id) as count
       FROM transactions t
-      JOIN accounts a ON t.account_id = a.id
-      WHERE a.type = 'petrol' AND t.type = 'expense' AND t.date >= ? AND t.date <= ?
+      WHERE (t.category_id = 'cat-petrol' OR t.category_id IN (SELECT id FROM categories WHERE name LIKE '%Petrol%'))
+        AND t.type = 'expense' AND t.date >= ? AND t.date <= ?
     `);
     const petrolStats = petrolSpentStmt.get(startDate, endDate) as any;
     const petrolLitresStmt = db.prepare(`
@@ -194,7 +196,9 @@ apiRouter.get('/bootstrap', (req, res) => {
         unallocatedPaise,
         totalSavingsPaise,
         availableSpendingPaise,
-        availablePetrolPaise,
+        availableBankPaise,
+        availableCashPaise,
+        availablePetrolPaise: 0,
         monthlyIncomePaise,
         monthlyExpensePaise,
       },
@@ -226,7 +230,7 @@ apiRouter.get('/bootstrap', (req, res) => {
 // -------------------------------------------------------------
 apiRouter.get('/accounts', (req, res) => {
   try {
-    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('petrol', 'spending', 'custom') ORDER BY created_at ASC").all();
+    const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('bank', 'spending', 'cash', 'custom') ORDER BY created_at ASC").all();
     res.json(accounts);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -334,7 +338,7 @@ apiRouter.post('/accounts/:id/close-allocation', (req, res) => {
   try {
     const { id } = req.params;
     const { notes, date } = req.body;
-    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('bank', 'spending', 'cash', 'custom')").get(id) as any;
     if (!account) {
       return res.status(404).json({ error: 'Financial account not found' });
     }
@@ -387,7 +391,7 @@ apiRouter.post('/accounts/:id/add-money', (req, res) => {
       return res.status(400).json({ error: 'Valid positive amount is required' });
     }
 
-    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('bank', 'spending', 'cash', 'custom')").get(id) as any;
     if (!account) {
       return res.status(404).json({ error: 'Financial account not found' });
     }
@@ -450,7 +454,7 @@ apiRouter.post('/accounts/:id/set-balance', (req, res) => {
       return res.status(400).json({ error: 'Valid non-negative balance is required' });
     }
 
-    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('petrol', 'spending', 'custom')").get(id) as any;
+    const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND type IN ('bank', 'spending', 'cash', 'custom')").get(id) as any;
     if (!account) {
       return res.status(404).json({ error: 'Financial account not found' });
     }
@@ -1286,7 +1290,7 @@ apiRouter.get('/reports/monthly', (req, res) => {
       
       const inc = (db.prepare('SELECT COALESCE(SUM(amount_paise), 0) as total FROM incomes WHERE date >= ? AND date <= ?').get(bounds.startDate, bounds.endDate) as any).total || 0;
       const exp = (db.prepare("SELECT COALESCE(SUM(amount_paise), 0) as total FROM transactions WHERE type = 'expense' AND date >= ? AND date <= ?").get(bounds.startDate, bounds.endDate) as any).total || 0;
-      const pet = (db.prepare("SELECT COALESCE(SUM(t.amount_paise), 0) as total FROM transactions t JOIN accounts a ON t.account_id = a.id WHERE a.type = 'petrol' AND t.type = 'expense' AND t.date >= ? AND t.date <= ?").get(bounds.startDate, bounds.endDate) as any).total || 0;
+      const pet = (db.prepare("SELECT COALESCE(SUM(t.amount_paise), 0) as total FROM transactions t WHERE (t.category_id = 'cat-petrol' OR t.category_id IN (SELECT id FROM categories WHERE name LIKE '%Petrol%')) AND t.type = 'expense' AND t.date >= ? AND t.date <= ?").get(bounds.startDate, bounds.endDate) as any).total || 0;
 
       sixMonthsTrend.push({
         month: mStr,
@@ -1322,11 +1326,13 @@ apiRouter.get('/reports/petrol', (req, res) => {
 
     // Monthly petrol transactions
     const txRows = db.prepare(`
-      SELECT t.*, pl.litres, pl.price_per_litre, pl.odometer, pl.fuel_station
+      SELECT t.*, a.name as account_name, a.color as account_color,
+             pl.litres, pl.price_per_litre, pl.odometer, pl.fuel_station
       FROM transactions t
-      JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN petrol_logs pl ON pl.transaction_id = t.id
-      WHERE a.type = 'petrol' AND t.type = 'expense' AND t.date >= ? AND t.date <= ?
+      WHERE (t.category_id = 'cat-petrol' OR t.category_id IN (SELECT id FROM categories WHERE name LIKE '%Petrol%'))
+        AND t.type = 'expense' AND t.date >= ? AND t.date <= ?
       ORDER BY t.date ASC
     `).all(startDate, endDate) as any[];
 
@@ -1554,8 +1560,9 @@ apiRouter.post('/reset', (req, res) => {
         INSERT INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, now);
-      insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, now);
+      insertAccount.run('acc-bank', 'Bank Account', 'bank', 0, '#0284c7', 'Building2', 1, now);
+      insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#065F46', 'ShoppingBag', 1, now);
+      insertAccount.run('acc-cash', 'Cash', 'cash', 0, '#059669', 'Banknote', 1, now);
 
       db.prepare("UPDATE settings SET value = 'true' WHERE key = 'is_onboarded'").run();
 
@@ -1593,89 +1600,71 @@ apiRouter.post('/demo/seed', (req, res) => {
 
       const nowIso = now.toISOString();
 
-      // Accounts: exactly College Petrol and Personal Spending
+      // Accounts: exactly Bank Account, Personal Spending, and Cash
       const insertAccount = db.prepare(`
         INSERT INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, nowIso);
-      insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, nowIso);
+      insertAccount.run('acc-bank', 'Bank Account', 'bank', 0, '#0284c7', 'Building2', 1, nowIso);
+      insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#065F46', 'ShoppingBag', 1, nowIso);
+      insertAccount.run('acc-cash', 'Cash', 'cash', 0, '#059669', 'Banknote', 1, nowIso);
 
-      // Scenario Step 1: Receive ₹5,000 from IT work
-      // Allocate ₹2,000 to College Petrol, ₹3,000 to Personal Spending (matching requirement 6)
+      // Scenario Step 1: Receive ₹5,000 from IT work into Bank Account
       const incId = `inc-demo-1`;
       db.prepare(`
         INSERT INTO incomes (id, amount_paise, source, date, description, allocated_paise, unallocated_paise, created_at)
         VALUES (?, 500000, 'IT work', ?, 'Freelance Web Project Payment', 500000, 0, ?)
       `).run(incId, firstDay, nowIso);
 
-      // Allocations
-      const allocs = [
-        { accId: 'acc-petrol', amt: 200000, note: 'College petrol allocation' },
-        { accId: 'acc-spending', amt: 300000, note: 'Personal spending allocation' },
-      ];
-      for (const a of allocs) {
-        db.prepare(`
-          INSERT INTO income_allocations (id, income_id, account_id, amount_paise, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(`alloc-${a.accId}`, incId, a.accId, a.amt, nowIso);
+      // Allocate to Bank Account
+      db.prepare(`
+        INSERT INTO income_allocations (id, income_id, account_id, amount_paise, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(`alloc-acc-bank`, incId, 'acc-bank', 500000, nowIso);
 
-        db.prepare('UPDATE accounts SET balance_paise = balance_paise + ? WHERE id = ?')
-          .run(a.amt, a.accId);
+      db.prepare('UPDATE accounts SET balance_paise = balance_paise + 500000 WHERE id = ?').run('acc-bank');
 
-        db.prepare(`
-          INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_income_id, created_at)
-          VALUES (?, 'income_allocation', ?, ?, ?, ?, ?, ?)
-        `).run(`tx-inc-${a.accId}`, a.accId, a.amt, firstDay, `Income: IT work (${a.note})`, incId, nowIso);
-      }
+      db.prepare(`
+        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_income_id, created_at)
+        VALUES (?, 'income_allocation', 'acc-bank', 500000, ?, 'Income: IT work (Bank Account)', ?, ?)
+      `).run(`tx-inc-bank`, firstDay, incId, nowIso);
 
-      // Scenario Step 2: Record ₹300 petrol expense (and a ₹350 refuel earlier)
+      // Scenario Step 2: Transfer ₹3,000 from Bank Account to Personal Spending
+      const trfId = `trf-demo-1`;
+      db.prepare('UPDATE accounts SET balance_paise = balance_paise - 300000 WHERE id = ?').run('acc-bank');
+      db.prepare('UPDATE accounts SET balance_paise = balance_paise + 300000 WHERE id = ?').run('acc-spending');
+      db.prepare(`
+        INSERT INTO transfers (id, from_account_id, to_account_id, amount_paise, date, note, created_at)
+        VALUES (?, 'acc-bank', 'acc-spending', 300000, ?, 'Monthly Personal Spending Allocation', ?)
+      `).run(trfId, today, nowIso);
+      db.prepare(`
+        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_transfer_id, created_at)
+        VALUES ('tx-demo-trf-out', 'transfer_out', 'acc-bank', 300000, ?, 'Transfer to Personal Spending', ?, ?)
+      `).run(today, trfId, nowIso);
+      db.prepare(`
+        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_transfer_id, created_at)
+        VALUES ('tx-demo-trf-in', 'transfer_in', 'acc-spending', 300000, ?, 'Transfer from Bank Account', ?, ?)
+      `).run(today, trfId, nowIso);
+
+      // Scenario Step 3: Record ₹350 petrol expense against Bank Account (Petrol category)
       const pet1TxId = `tx-demo-pet1`;
-      db.prepare('UPDATE accounts SET balance_paise = balance_paise - 35000 WHERE id = ?').run('acc-petrol');
+      db.prepare('UPDATE accounts SET balance_paise = balance_paise - 35000 WHERE id = ?').run('acc-bank');
       db.prepare(`
         INSERT INTO transactions (id, type, account_id, amount_paise, category_id, date, description, merchant, created_at)
-        VALUES (?, 'expense', 'acc-petrol', 35000, 'cat-petrol', ?, 'Weekly College Commute Refuel', 'Indian Oil', ?)
+        VALUES (?, 'expense', 'acc-bank', 35000, 'cat-petrol', ?, 'Weekly Commute Refuel', 'Indian Oil', ?)
       `).run(pet1TxId, today, nowIso);
       db.prepare(`
         INSERT INTO petrol_logs (id, transaction_id, expense_paise, litres, price_per_litre, odometer, fuel_station, date, notes, created_at)
         VALUES (?, ?, 35000, 3.40, 102.94, 14250, 'Indian Oil Highway', ?, 'Full tank commute', ?)
       `).run('pet-demo-1', pet1TxId, today, nowIso);
 
-      const pet2TxId = `tx-demo-pet2`;
-      db.prepare('UPDATE accounts SET balance_paise = balance_paise - 30000 WHERE id = ?').run('acc-petrol');
-      db.prepare(`
-        INSERT INTO transactions (id, type, account_id, amount_paise, category_id, date, description, merchant, created_at)
-        VALUES (?, 'expense', 'acc-petrol', 30000, 'cat-petrol', ?, 'Mid-week Petrol Refill', 'Bharat Petroleum', ?)
-      `).run(pet2TxId, today, nowIso);
-      db.prepare(`
-        INSERT INTO petrol_logs (id, transaction_id, expense_paise, litres, price_per_litre, odometer, fuel_station, date, notes, created_at)
-        VALUES (?, ?, 30000, 2.91, 103.00, 14380, 'Bharat Petroleum Campus', ?, 'Refuel before exam commute', ?)
-      `).run('pet-demo-2', pet2TxId, today, nowIso);
-
-      // Scenario Step 3: Record ₹500 personal shopping expense
+      // Scenario Step 4: Record ₹500 personal shopping expense against Personal Spending
       const shopTxId = `tx-demo-shop`;
       db.prepare('UPDATE accounts SET balance_paise = balance_paise - 50000 WHERE id = ?').run('acc-spending');
       db.prepare(`
         INSERT INTO transactions (id, type, account_id, amount_paise, category_id, date, description, merchant, created_at)
-        VALUES (?, 'expense', 'acc-spending', 50000, 'cat-shopping', ?, 'College Notebooks & Stationery', 'College Book Stall', ?)
+        VALUES (?, 'expense', 'acc-spending', 50000, 'cat-shopping', ?, 'Stationery & Study Material', 'Stationery Mart', ?)
       `).run(shopTxId, today, nowIso);
-
-      // Scenario Step 4: Transfer ₹200 from Personal Spending to College Petrol
-      const trfId = `trf-demo-1`;
-      db.prepare('UPDATE accounts SET balance_paise = balance_paise - 20000 WHERE id = ?').run('acc-spending');
-      db.prepare('UPDATE accounts SET balance_paise = balance_paise + 20000 WHERE id = ?').run('acc-petrol');
-      db.prepare(`
-        INSERT INTO transfers (id, from_account_id, to_account_id, amount_paise, date, note, created_at)
-        VALUES (?, 'acc-spending', 'acc-petrol', 20000, ?, 'Extra petrol buffer for college fest', ?)
-      `).run(trfId, today, nowIso);
-      db.prepare(`
-        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_transfer_id, created_at)
-        VALUES ('tx-demo-trf-out', 'transfer_out', 'acc-spending', 20000, ?, 'Transfer to College Petrol (Extra petrol buffer)', ?, ?)
-      `).run(today, trfId, nowIso);
-      db.prepare(`
-        INSERT INTO transactions (id, type, account_id, amount_paise, date, description, related_transfer_id, created_at)
-        VALUES ('tx-demo-trf-in', 'transfer_in', 'acc-petrol', 20000, ?, 'Transfer from Personal Spending (Extra petrol buffer)', ?, ?)
-      `).run(today, trfId, nowIso);
 
       db.prepare("UPDATE settings SET value = 'true' WHERE key = 'is_onboarded'").run();
 

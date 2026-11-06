@@ -8,6 +8,7 @@ import { initDatabase } from './server/db.js';
 import { apiRouter } from './server/api.js';
 import { setupGeminiLiveServer } from './server/gemini.js';
 import { initTursoSync, scheduleTursoSync } from './server/turso.js';
+import { runHistoricalImport } from './server/scripts/importHistoricalData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,7 @@ async function startServer() {
   // Initialize SQLite database
   initDatabase();
   await initTursoSync();
+  await runHistoricalImport();
 
   // Enable CORS for mobile app and external clients
   app.use((req, res, next) => {

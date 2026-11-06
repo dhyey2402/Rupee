@@ -51,8 +51,14 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
 
-  const petrolAccount = accounts.find(a => a.type === 'petrol');
-  const petrolBudget = budgets.find(b => b.linked_account_id === 'acc-petrol');
+  const bankAccount = accounts.find(a => a.type === 'bank');
+  const [refuelAccountId, setRefuelAccountId] = useState(bankAccount?.id || accounts[0]?.id || '');
+
+  useEffect(() => {
+    if (bankAccount && !refuelAccountId) {
+      setRefuelAccountId(bankAccount.id);
+    }
+  }, [bankAccount]);
 
   const fetchPetrolData = () => {
     setLoading(true);
@@ -100,7 +106,11 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
 
   const handleQuickRefuelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!petrolAccount) return;
+    const targetAccountId = refuelAccountId || bankAccount?.id || accounts[0]?.id;
+    if (!targetAccountId) {
+      setQuickError('No account available to record refuel.');
+      return;
+    }
     const amountNum = parseFloat(quickAmount);
     if (!amountNum || amountNum <= 0) {
       setQuickError('Please enter a valid expense amount.');
@@ -111,7 +121,7 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
     setQuickError(null);
 
     const payload: any = {
-      accountId: petrolAccount.id,
+      accountId: targetAccountId,
       amountPaise: Math.round(amountNum * 100),
       categoryId: 'cat-petrol',
       date: quickDate,
@@ -163,13 +173,6 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onOpenTransfer(undefined, petrolAccount?.id)}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
-          >
-            <span>+ Add Petrol Funds</span>
-          </button>
-          <button
-            type="button"
             onClick={() => setShowQuickRefuel(true)}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-xs transition-all flex items-center gap-1.5"
           >
@@ -179,54 +182,40 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
         </div>
       </div>
 
-      {/* College Petrol Budget Status Bar */}
-      {petrolAccount && (
-        <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">
-                  College Petrol Account
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                  Fixed ₹2,000 / month cap
-                </span>
-              </div>
-              <h3 className="text-2xl font-black text-white mt-1">
-                {formatINR(petrolAccount.balance_paise)}
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Available money in petrol bucket</p>
+      {/* Petrol Category & Commute Overview Bar */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">
+                Petrol Expense Category
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                Tracked across Bank & Cash accounts
+              </span>
             </div>
+            <h3 className="text-2xl font-black text-white mt-1">
+              {formatINR(stats.totalSpentPaise || 0)}
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">Total recorded petrol expenses</p>
+          </div>
 
-            <div className="grid grid-cols-3 gap-3 bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400">Monthly Budget</span>
-                <p className="text-sm font-bold text-white">
-                  {formatINR(petrolBudget?.amount_paise || 200000)}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400">Spent This Month</span>
-                <p className="text-sm font-bold text-amber-300">
-                  {formatINR(petrolBudget?.spent_paise || 0)}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400">Remaining</span>
-                <p
-                  className={`text-sm font-bold ${
-                    petrolBudget?.is_exceeded ? 'text-rose-400' : 'text-emerald-400'
-                  }`}
-                >
-                  {petrolBudget?.is_exceeded
-                    ? `-${formatINR(petrolBudget.exceeded_by_paise || 0)}`
-                    : formatINR(petrolBudget?.remaining_paise || 0)}
-                </p>
-              </div>
+          <div className="grid grid-cols-2 gap-3 bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/60">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Total Fuel</span>
+              <p className="text-sm font-bold text-amber-300">
+                {stats.totalLitres || 0} Litres
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Avg Price / L</span>
+              <p className="text-sm font-bold text-white">
+                ₹{stats.avgPricePerLitre?.toFixed(2) || '0.00'}
+              </p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Petrol Statistics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
@@ -408,7 +397,7 @@ export const PetrolTrackerView: React.FC<PetrolTrackerViewProps> = ({
                 disabled={quickLoading}
                 className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-xs transition-all disabled:opacity-50"
               >
-                {quickLoading ? 'Logging...' : 'Save & Deduct from Petrol Account'}
+                {quickLoading ? 'Logging...' : 'Save & Record Petrol Expense'}
               </button>
             </div>
           </form>

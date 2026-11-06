@@ -1,7 +1,7 @@
 export interface Account {
   id: string;
   name: string;
-  type: 'petrol' | 'spending' | 'custom' | 'savings' | 'archived_savings';
+  type: 'bank' | 'spending' | 'cash' | 'custom' | 'savings' | 'archived_savings' | 'petrol';
   balance_paise: number;
   available_money_paise?: number;
   color: string;
@@ -147,6 +147,8 @@ export interface BootstrapData {
     unallocatedPaise: number;
     totalSavingsPaise: number;
     availableSpendingPaise: number;
+    availableBankPaise?: number;
+    availableCashPaise?: number;
     availablePetrolPaise?: number;
     monthlyIncomePaise: number;
     monthlyExpensePaise: number;

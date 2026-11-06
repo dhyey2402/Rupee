@@ -14,6 +14,8 @@ import {
   Fuel,
   Sparkles,
   ShoppingBag,
+  Building2,
+  Banknote,
 } from 'lucide-react';
 import { formatINR } from '../utils/format';
 
@@ -27,8 +29,9 @@ interface SidebarProps {
   onOpenExpense: () => void;
   onOpenIncome: () => void;
   onOpenTransfer: () => void;
-  petrolAvailablePaise?: number;
+  bankAvailablePaise?: number;
   spendingAvailablePaise?: number;
+  cashAvailablePaise?: number;
   totalSavedPaise?: number;
 }
 
@@ -40,8 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenExpense,
   onOpenIncome,
   onOpenTransfer,
-  petrolAvailablePaise = 0,
+  bankAvailablePaise = 0,
   spendingAvailablePaise = 0,
+  cashAvailablePaise = 0,
   totalSavedPaise = 0,
 }) => {
   const navItems = [
@@ -176,35 +180,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Financial Reserves Quick-Glance Micro-Card (No spending limits or caps) */}
+      {/* Financial Reserves Quick-Glance Micro-Card */}
       <div className="p-4 border-t border-[#F0F1F3]">
         <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#EFE8DC] space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-bold text-[#854D0E]">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#0369A1]">
             <span className="flex items-center gap-1.5">
-              <Fuel className="w-3.5 h-3.5 text-[#B45309]" />
-              Petrol Available
+              <Building2 className="w-3.5 h-3.5 text-[#0284c7]" />
+              Bank
             </span>
             <span className="tabular-nums text-[#111318]">
-              {formatINR(petrolAvailablePaise)}
+              {formatINR(bankAvailablePaise)}
             </span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] font-bold text-[#0369A1] pt-1 border-t border-[#EFE8DC]">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#065F46] pt-1 border-t border-[#EFE8DC]">
             <span className="flex items-center gap-1.5">
-              <ShoppingBag className="w-3.5 h-3.5 text-[#0ea5e9]" />
-              Personal Available
+              <ShoppingBag className="w-3.5 h-3.5 text-[#065F46]" />
+              Personal
             </span>
             <span className="tabular-nums text-[#111318]">
               {formatINR(spendingAvailablePaise)}
             </span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] font-bold text-[#065F46] pt-1 border-t border-[#EFE8DC]">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#047857] pt-1 border-t border-[#EFE8DC]">
             <span className="flex items-center gap-1.5">
-              <PiggyBank className="w-3.5 h-3.5 text-[#065F46]" />
+              <Banknote className="w-3.5 h-3.5 text-[#059669]" />
+              Cash
+            </span>
+            <span className="tabular-nums text-[#111318]">
+              {formatINR(cashAvailablePaise)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#111318] pt-1 border-t border-[#EFE8DC]">
+            <span className="flex items-center gap-1.5">
+              <PiggyBank className="w-3.5 h-3.5 text-[#111318]" />
               Total Saved
             </span>
-            <span className="tabular-nums text-[#065F46]">
+            <span className="tabular-nums text-[#111318]">
               {formatINR(totalSavedPaise)}
             </span>
           </div>

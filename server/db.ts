@@ -23,7 +23,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      type TEXT NOT NULL, -- 'petrol', 'spending', 'savings', 'custom'
+      type TEXT NOT NULL, -- 'bank', 'spending', 'cash', 'custom'
       balance_paise INTEGER NOT NULL DEFAULT 0,
       color TEXT NOT NULL DEFAULT '#0ea5e9',
       icon TEXT NOT NULL DEFAULT 'Wallet',
@@ -178,40 +178,55 @@ export function initDatabase() {
     insertSetting.run('is_onboarded', 'true');
   }
 
-  // Seed default primary financial accounts if empty
-  const countAccountsStmt = db.prepare("SELECT COUNT(*) as count FROM accounts WHERE type IN ('petrol', 'spending')");
-  const accResult = countAccountsStmt.get() as { count: number };
-  if (accResult.count === 0) {
-    const now = new Date().toISOString();
-    const insertAccount = db.prepare(`
-      INSERT INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    // 1. College Petrol
-    insertAccount.run('acc-petrol', 'College Petrol', 'petrol', 0, '#f59e0b', 'Fuel', 1, now);
-    // 2. Personal Spending
-    insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#0ea5e9', 'ShoppingBag', 1, now);
-  }
+  // Seed exactly 3 primary financial accounts: Bank Account, Personal Spending, Cash
+  const now = new Date().toISOString();
+  const insertAccount = db.prepare(`
+    INSERT OR IGNORE INTO accounts (id, name, type, balance_paise, color, icon, is_system, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  // 1. Bank Account (Tracks money in and out of bank, supports petrol expenses)
+  insertAccount.run('acc-bank', 'Bank Account', 'bank', 0, '#0284c7', 'Building2', 1, now);
+  // 2. Personal Spending (Food, shopping, personal needs - no spending limit or auto reset)
+  insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#065F46', 'ShoppingBag', 1, now);
+  // 3. Cash (Physical cash currently held)
+  insertAccount.run('acc-cash', 'Cash', 'cash', 0, '#059669', 'Banknote', 1, now);
 
   // Safe Migration for existing data:
   // 1. Remove obsolete petrol budget setting
   db.prepare("DELETE FROM settings WHERE key = 'petrol_monthly_budget_paise'").run();
 
-  // 2. Remove any spending limit or monthly budget on College Petrol or Personal Spending
-  db.prepare("DELETE FROM budgets WHERE linked_account_id IN ('acc-petrol', 'acc-spending') OR id = 'bgt-college-petrol'").run();
+  // 2. Remove any spending limit or monthly budget on primary accounts
+  db.prepare("DELETE FROM budgets WHERE linked_account_id IN ('acc-petrol', 'acc-spending', 'acc-bank', 'acc-cash') OR id = 'bgt-college-petrol'").run();
 
-  // 3. Migrate any existing Savings financial account to dedicated savings_records
+  // 3. Migrate legacy acc-petrol account -> acc-bank with cat-petrol
+  const existingPetrolAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc-petrol'").get() as any;
+  if (existingPetrolAcc) {
+    // Reassign all transactions from acc-petrol to acc-bank
+    db.prepare("UPDATE transactions SET account_id = 'acc-bank', category_id = COALESCE(category_id, 'cat-petrol') WHERE account_id = 'acc-petrol'").run();
+    // Reassign transfers
+    db.prepare("UPDATE transfers SET from_account_id = 'acc-bank' WHERE from_account_id = 'acc-petrol'").run();
+    db.prepare("UPDATE transfers SET to_account_id = 'acc-bank' WHERE to_account_id = 'acc-petrol'").run();
+    // If acc-petrol had any balance, move it to acc-bank
+    if (existingPetrolAcc.balance_paise > 0) {
+      db.prepare('UPDATE accounts SET balance_paise = balance_paise + ? WHERE id = ?').run(existingPetrolAcc.balance_paise, 'acc-bank');
+    }
+    // Delete acc-petrol
+    db.prepare("DELETE FROM accounts WHERE id = 'acc-petrol'").run();
+  }
+
+  // 4. Migrate any existing Savings financial account to dedicated savings_records
   const existingSavingsAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc-savings' OR type = 'savings'").get() as any;
   if (existingSavingsAcc) {
     if (existingSavingsAcc.balance_paise > 0) {
       const existingMigrated = db.prepare("SELECT COUNT(*) as count FROM savings_records WHERE id = 'sav-migrated-initial'").get() as any;
       if (existingMigrated.count === 0) {
         const today = new Date().toISOString().split('T')[0];
-        const now = new Date().toISOString();
+        const nowIso = new Date().toISOString();
         db.prepare(`
           INSERT INTO savings_records (id, amount_paise, source_account_id, source_account_name, date, notes, created_at)
           VALUES ('sav-migrated-initial', ?, NULL, 'Initial Savings', ?, 'Migrated from previous savings account', ?)
-        `).run(existingSavingsAcc.balance_paise, today, now);
+        `).run(existingSavingsAcc.balance_paise, today, nowIso);
       }
     }
 

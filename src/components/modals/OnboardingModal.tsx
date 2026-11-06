@@ -55,7 +55,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       if (totalInitial > 0) {
         const today = new Date().toISOString().split('T')[0];
         const allocations = [];
-        if (pPaise > 0) allocations.push({ accountId: 'acc-petrol', amountPaise: pPaise });
+        if (pPaise > 0) allocations.push({ accountId: 'acc-bank', amountPaise: pPaise });
         if (sPaise > 0) allocations.push({ accountId: 'acc-spending', amountPaise: sPaise });
 
         await fetch('/api/incomes', {
