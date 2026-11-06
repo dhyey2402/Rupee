@@ -195,7 +195,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#111318]">
-                    College Petrol
+                    Petrol
                   </h3>
                   <span className="text-[10px] font-semibold text-[#854D0E]">
                     Dedicated fuel log & commute tracker

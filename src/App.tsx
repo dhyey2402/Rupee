@@ -306,6 +306,8 @@ export default function App() {
               {activeTab === 'accounts' && (
                 <AccountsView
                   accounts={data.accounts}
+                  petrolOverview={data.petrolOverview}
+                  summary={data.summary}
                   onOpenCreateAccount={() => {
                     setEditingAccount(null);
                     setIsAccountModalOpen(true);
