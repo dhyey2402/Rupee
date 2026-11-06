@@ -75,8 +75,8 @@ apiRouter.get('/bootstrap', (req, res) => {
     `);
     const monthlyExpensePaise = (monthlyExpenseStmt.get(startDate, endDate) as any).total || 0;
 
-    // Total money across all financial accounts:
-    const totalBalanceStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type IN ('bank', 'spending', 'cash', 'custom')");
+    // Total money across real financial accounts (Bank Account + Cash):
+    const totalBalanceStmt = db.prepare("SELECT COALESCE(SUM(balance_paise), 0) as total FROM accounts WHERE type IN ('bank', 'cash', 'custom')");
     const totalAccountBalancePaise = (totalBalanceStmt.get() as any).total || 0;
     const totalMoneyPaise = totalAccountBalancePaise + unallocatedPaise;
 
@@ -93,13 +93,14 @@ apiRouter.get('/bootstrap', (req, res) => {
     const savingsByAccount = savingsByAccountStmt.all() as any[];
     const savingsRecords = db.prepare('SELECT * FROM savings_records ORDER BY date DESC, created_at DESC LIMIT 20').all() as any[];
 
-    // Primary account balances
+    // Primary account balances:
+    // Money accounts are Bank Account & Cash; Personal Spending reflects available money across them
     const bankAcc = accounts.find((a: any) => a.type === 'bank');
-    const spendingAcc = accounts.find((a: any) => a.type === 'spending');
     const cashAcc = accounts.find((a: any) => a.type === 'cash');
+    const spendingAcc = accounts.find((a: any) => a.type === 'spending');
     const availableBankPaise = bankAcc ? bankAcc.balance_paise : 0;
-    const availableSpendingPaise = spendingAcc ? spendingAcc.balance_paise : 0;
     const availableCashPaise = cashAcc ? cashAcc.balance_paise : 0;
+    const availableSpendingPaise = availableBankPaise + availableCashPaise;
 
     // Calculate budget utilization for categories if any exist
     const budgetListWithStats = budgets.map((b: any) => {

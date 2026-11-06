@@ -110,8 +110,7 @@ export async function runHistoricalImport() {
           monthTotals[mKey].totalPaise += amountPaise;
         }
 
-        // Deduct from Personal Spending balance
-        db.prepare('UPDATE accounts SET balance_paise = balance_paise - ? WHERE id = ?').run(amountPaise, 'acc-spending');
+        // Note: Personal Spending is an expense tracking summary card, not a deductible balance
       }
     }
 
@@ -185,3 +184,4 @@ if (process.argv[1]?.includes('importHistoricalData')) {
     process.exit(1);
   });
 }
+

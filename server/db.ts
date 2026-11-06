@@ -185,12 +185,12 @@ export function initDatabase() {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // 1. Bank Account (Tracks money in and out of bank, supports petrol expenses)
-  insertAccount.run('acc-bank', 'Bank Account', 'bank', 0, '#0284c7', 'Building2', 1, now);
-  // 2. Personal Spending (Food, shopping, personal needs - no spending limit or auto reset)
+  // 1. Bank Account (Tracks money in and out of bank; current balance ₹1,475)
+  insertAccount.run('acc-bank', 'Bank Account', 'bank', 147500, '#0284c7', 'Building2', 1, now);
+  // 2. Personal Spending (Card showing how much money is spent)
   insertAccount.run('acc-spending', 'Personal Spending', 'spending', 0, '#065F46', 'ShoppingBag', 1, now);
-  // 3. Cash (Physical cash currently held)
-  insertAccount.run('acc-cash', 'Cash', 'cash', 0, '#059669', 'Banknote', 1, now);
+  // 3. Cash (Physical cash currently held; current balance ₹2,100)
+  insertAccount.run('acc-cash', 'Cash', 'cash', 210000, '#059669', 'Banknote', 1, now);
 
   // Safe Migration for existing data:
   // 1. Remove obsolete petrol budget setting

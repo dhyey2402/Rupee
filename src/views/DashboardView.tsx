@@ -190,288 +190,222 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* 2. Primary Financial Accounts: Bank Account, Personal Spending & Cash */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bank Account Spotlight */}
-        {bankAccount && (
-          <div className="bg-[#F0F9FF] rounded-3xl border border-[#BAE6FD] p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[#0284C7] text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#111318]">
-                      Bank Account
-                    </h3>
-                    <span className="text-[10px] font-semibold text-[#0369A1]">
-                      Actual bank account balance
-                    </span>
-                  </div>
+      {/* 2. Primary Spotlights: College Petrol & Personal Spending (Bank Account & Cash) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Spotlight 1: College Petrol */}
+        <div className="lg:col-span-5 bg-[#FAF7F2] rounded-3xl border border-[#EFE8DC] p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-[#B45309] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Fuel className="w-5 h-5" />
                 </div>
-
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E0F2FE] text-[#0369A1] uppercase">
-                  Bank
-                </span>
+                <div>
+                  <h3 className="text-base font-bold text-[#111318]">
+                    College Petrol
+                  </h3>
+                  <span className="text-[10px] font-semibold text-[#854D0E]">
+                    Dedicated fuel log & commute tracker
+                  </span>
+                </div>
               </div>
 
-              {/* Exact 3 Financial Metrics */}
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                <div className="bg-white/95 p-3 rounded-xl border border-[#BAE6FD]">
-                  <span className="text-[9px] uppercase font-bold text-[#0369A1] block truncate">Current Balance</span>
-                  <p className="text-sm sm:text-base font-black text-[#111318] tabular-nums mt-0.5">
-                    {formatINR(bankAccount.balance_paise)}
-                  </p>
-                </div>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#F5EEDF] text-[#854D0E] uppercase">
+                Commute
+              </span>
+            </div>
 
-                <div className="bg-white/95 p-3 rounded-xl border border-[#BAE6FD]">
-                  <span className="text-[9px] uppercase font-bold text-[#0369A1] block truncate">Spent This Month</span>
-                  <p className="text-sm sm:text-base font-extrabold text-[#0284C7] tabular-nums mt-0.5">
-                    {formatINR(bankAccount.monthly_spent_paise || 0)}
-                  </p>
-                </div>
+            {/* Petrol Metrics */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
+                <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Spent This Month</span>
+                <p className="text-sm sm:text-base font-black text-[#B45309] tabular-nums mt-0.5">
+                  {formatINR(petrolOverview.spentPaise)}
+                </p>
+              </div>
 
-                <div className="bg-white/95 p-3 rounded-xl border border-[#BAE6FD]">
-                  <span className="text-[9px] uppercase font-bold text-[#0369A1] block truncate">Available Money</span>
-                  <p className="text-sm sm:text-base font-black text-[#065F46] tabular-nums mt-0.5">
-                    {formatINR(bankAccount.balance_paise)}
-                  </p>
-                </div>
+              <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
+                <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Total Fuel</span>
+                <p className="text-sm sm:text-base font-black text-[#111318] tabular-nums mt-0.5">
+                  {petrolOverview.litres || 0} <span className="text-[11px] font-bold text-[#6B7280]">L</span>
+                </p>
+              </div>
+
+              <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
+                <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Refuels</span>
+                <p className="text-sm sm:text-base font-black text-[#065F46] tabular-nums mt-0.5">
+                  {petrolOverview.txCount || 0} <span className="text-[11px] font-bold text-[#6B7280]">fills</span>
+                </p>
               </div>
             </div>
 
-            {/* Actions for Bank Account */}
-            <div className="pt-2 border-t border-[#BAE6FD] flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpenExpense(bankAccount.id)}
-                className="px-3 py-1.5 bg-[#0284C7] hover:bg-[#0369A1] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Expense</span>
-              </button>
+            <p className="text-xs text-[#854D0E] leading-relaxed">
+              Refuels are recorded against your Bank Account or Cash under the Petrol category.
+            </p>
+          </div>
 
-              <button
-                type="button"
-                onClick={() => onOpenAddMoney(bankAccount, 'add')}
-                className="px-2.5 py-1.5 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#0284C7]" />
-                <span>Add Money</span>
-              </button>
+          {/* Actions for Petrol */}
+          <div className="pt-3 border-t border-[#EFE8DC] flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenExpense(bankAccount?.id)}
+              className="px-3.5 py-2 bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Record Refuel</span>
+            </button>
+          </div>
+        </div>
 
+        {/* Spotlight 2: Personal Spending (Holds Bank Account & Cash) */}
+        <div className="lg:col-span-7 bg-[#F0FDF4] rounded-3xl border border-[#BBF7D0] p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-[#065F46] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#111318]">
+                    Personal Spending
+                  </h3>
+                  <span className="text-[10px] font-semibold text-[#065F46]">
+                    Card showing total spent • Funded by Bank Account & Cash
+                  </span>
+                </div>
+              </div>
+
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white text-[#065F46] border border-[#BBF7D0] uppercase">
+                Spending Card
+              </span>
+            </div>
+
+            {/* Overview Row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/95 p-3.5 rounded-2xl border border-[#BBF7D0]">
+                <span className="text-[10px] uppercase font-bold text-[#065F46] block">Spent This Month</span>
+                <p className="text-xl sm:text-2xl font-black text-[#111318] tabular-nums mt-0.5">
+                  {formatINR(summary.monthlyExpensePaise)}
+                </p>
+                <span className="text-[10px] text-[#6B7280]">How much you have spent</span>
+              </div>
+
+              <div className="bg-white/95 p-3.5 rounded-2xl border border-[#BBF7D0]">
+                <span className="text-[10px] uppercase font-bold text-[#065F46] block">Available Money (Total)</span>
+                <p className="text-xl sm:text-2xl font-black text-[#065F46] tabular-nums mt-0.5">
+                  {formatINR((bankAccount?.balance_paise || 0) + (cashAccount?.balance_paise || 0))}
+                </p>
+                <span className="text-[10px] text-[#6B7280]">Bank Account + Cash balance</span>
+              </div>
+            </div>
+
+            {/* Sub-cards: Bank Account & Cash */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* 1. Bank Account */}
+              <div className="bg-white p-3.5 rounded-2xl border border-[#E5E7EB] shadow-xs flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#111318]">
+                      <Building2 className="w-4 h-4 text-[#0284c7]" />
+                      <span>Bank Account</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#E0F2FE] text-[#0284c7]">
+                      Bank
+                    </span>
+                  </div>
+
+                  <div className="mt-2">
+                    <span className="text-[9px] uppercase font-bold text-[#6B7280]">Available Balance</span>
+                    <p className="text-lg font-black text-[#0284c7] tabular-nums">
+                      {formatINR(bankAccount?.balance_paise || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#F3F4F6] flex items-center justify-between text-[10px]">
+                  <span className="text-[#6B7280]">Spent this mo:</span>
+                  <span className="font-semibold tabular-nums text-[#111318]">
+                    {formatINR(bankAccount?.monthly_spent_paise || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Cash */}
+              <div className="bg-white p-3.5 rounded-2xl border border-[#E5E7EB] shadow-xs flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#111318]">
+                      <Banknote className="w-4 h-4 text-[#059669]" />
+                      <span>Cash</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#ECFDF5] text-[#059669]">
+                      Cash
+                    </span>
+                  </div>
+
+                  <div className="mt-2">
+                    <span className="text-[9px] uppercase font-bold text-[#6B7280]">Available Balance</span>
+                    <p className="text-lg font-black text-[#059669] tabular-nums">
+                      {formatINR(cashAccount?.balance_paise || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#F3F4F6] flex items-center justify-between text-[10px]">
+                  <span className="text-[#6B7280]">Spent this mo:</span>
+                  <span className="font-semibold tabular-nums text-[#111318]">
+                    {formatINR(cashAccount?.monthly_spent_paise || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions toolbar */}
+          <div className="pt-3 border-t border-[#BBF7D0] flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenExpense()}
+              className="px-4 py-2 bg-[#065F46] hover:bg-[#047857] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Record Expense</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenTransfer()}
+              className="px-3.5 py-2 bg-white text-[#065F46] border border-[#BBF7D0] hover:bg-[#F0FDF4] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-[#065F46]" />
+              <span>Transfer (Bank ↔ Cash)</span>
+            </button>
+
+            {bankAccount && (
               <button
                 type="button"
                 onClick={() => onOpenAddMoney(bankAccount, 'set')}
-                className="px-2.5 py-1.5 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                title="Set actual bank balance"
+                className="px-3 py-2 bg-white text-[#374151] border border-[#E5E7EB] hover:bg-[#F9FAFB] text-xs font-medium rounded-xl transition-colors cursor-pointer ml-auto"
+                title="Adjust Bank Account balance"
               >
-                <span>Set Balance</span>
+                <span>Set Bank</span>
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={() => onOpenTransfer(bankAccount.id)}
-                className="px-2.5 py-1.5 bg-white text-[#0369A1] border border-[#BAE6FD] hover:bg-[#F0F9FF] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-[#0284C7]" />
-                <span>Transfer</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Personal Spending Account Spotlight */}
-        {spendingAccount && (
-          <div className="bg-[#FAF7F2] rounded-3xl border border-[#EFE8DC] p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[#065F46] text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <ShoppingBag className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#111318]">
-                      Personal Spending
-                    </h3>
-                    <span className="text-[10px] font-semibold text-[#854D0E]">
-                      Food, shopping & personal expenses
-                    </span>
-                  </div>
-                </div>
-
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#F5EEDF] text-[#854D0E] uppercase">
-                  Spending
-                </span>
-              </div>
-
-              {/* Exact 3 Financial Metrics */}
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Current Balance</span>
-                  <p className="text-sm sm:text-base font-black text-[#111318] tabular-nums mt-0.5">
-                    {formatINR(spendingAccount.balance_paise)}
-                  </p>
-                </div>
-
-                <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Spent This Month</span>
-                  <p className="text-sm sm:text-base font-extrabold text-[#B45309] tabular-nums mt-0.5">
-                    {formatINR(spendingAccount.monthly_spent_paise || 0)}
-                  </p>
-                </div>
-
-                <div className="bg-white/95 p-3 rounded-xl border border-[#EFE8DC]">
-                  <span className="text-[9px] uppercase font-bold text-[#854D0E] block truncate">Available Money</span>
-                  <p className="text-sm sm:text-base font-black text-[#065F46] tabular-nums mt-0.5">
-                    {formatINR(spendingAccount.balance_paise)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions for Personal Spending */}
-            <div className="pt-2 border-t border-[#EFE8DC] flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpenExpense(spendingAccount.id)}
-                className="px-3 py-1.5 bg-[#065F46] hover:bg-[#047857] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Expense</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenAddMoney(spendingAccount, 'add')}
-                className="px-2.5 py-1.5 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#065F46]" />
-                <span>Add Money</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenAddMoney(spendingAccount, 'set')}
-                className="px-2.5 py-1.5 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                title="Set current balance"
-              >
-                <span>Set Balance</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenTransfer(spendingAccount.id)}
-                className="px-2.5 py-1.5 bg-white text-[#713F12] border border-[#EFE8DC] hover:bg-[#FDFBF7] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-[#065F46]" />
-                <span>Transfer</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenCloseAllocation(spendingAccount)}
-                className="px-2.5 py-1.5 bg-[#F5EEDF] hover:bg-[#EADDCE] text-[#854D0E] text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer ml-auto"
-                title="Close allocation and automatically save remaining unused money"
-              >
-                <PiggyBank className="w-3.5 h-3.5 text-[#854D0E]" />
-                <span>Close</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Cash Account Spotlight */}
-        {cashAccount && (
-          <div className="bg-[#ECFDF5] rounded-3xl border border-[#A7F3D0] p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[#059669] text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <Banknote className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#111318]">
-                      Cash
-                    </h3>
-                    <span className="text-[10px] font-semibold text-[#047857]">
-                      Physical cash in hand
-                    </span>
-                  </div>
-                </div>
-
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white text-[#047857] border border-[#A7F3D0] uppercase">
-                  Cash
-                </span>
-              </div>
-
-              {/* Exact 3 Financial Metrics */}
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                <div className="bg-white/95 p-3 rounded-xl border border-[#A7F3D0]">
-                  <span className="text-[9px] uppercase font-bold text-[#047857] block truncate">Current Balance</span>
-                  <p className="text-sm sm:text-base font-black text-[#111318] tabular-nums mt-0.5">
-                    {formatINR(cashAccount.balance_paise)}
-                  </p>
-                </div>
-
-                <div className="bg-white/95 p-3 rounded-xl border border-[#A7F3D0]">
-                  <span className="text-[9px] uppercase font-bold text-[#047857] block truncate">Spent This Month</span>
-                  <p className="text-sm sm:text-base font-extrabold text-[#059669] tabular-nums mt-0.5">
-                    {formatINR(cashAccount.monthly_spent_paise || 0)}
-                  </p>
-                </div>
-
-                <div className="bg-white/95 p-3 rounded-xl border border-[#A7F3D0]">
-                  <span className="text-[9px] uppercase font-bold text-[#047857] block truncate">Available Money</span>
-                  <p className="text-sm sm:text-base font-black text-[#065F46] tabular-nums mt-0.5">
-                    {formatINR(cashAccount.balance_paise)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions for Cash */}
-            <div className="pt-2 border-t border-[#A7F3D0] flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpenExpense(cashAccount.id)}
-                className="px-3 py-1.5 bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Expense</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenAddMoney(cashAccount, 'add')}
-                className="px-2.5 py-1.5 bg-white text-[#047857] border border-[#A7F3D0] hover:bg-[#F0FDF4] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#059669]" />
-                <span>Add Cash</span>
-              </button>
-
+            {cashAccount && (
               <button
                 type="button"
                 onClick={() => onOpenAddMoney(cashAccount, 'set')}
-                className="px-2.5 py-1.5 bg-white text-[#047857] border border-[#A7F3D0] hover:bg-[#F0FDF4] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                title="Set current cash on hand"
+                className="px-3 py-2 bg-white text-[#374151] border border-[#E5E7EB] hover:bg-[#F9FAFB] text-xs font-medium rounded-xl transition-colors cursor-pointer"
+                title="Adjust Cash in hand balance"
               >
-                <span>Set Balance</span>
+                <span>Set Cash</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenTransfer(cashAccount.id)}
-                className="px-2.5 py-1.5 bg-white text-[#047857] border border-[#A7F3D0] hover:bg-[#F0FDF4] text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-[#059669]" />
-                <span>Transfer</span>
-              </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
+      
 
       {/* 3. Dedicated Savings Reference Strip */}
       <div className="bg-gradient-to-r from-[#ECFDF5] to-[#F0FDF4] rounded-3xl border border-[#A7F3D0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">

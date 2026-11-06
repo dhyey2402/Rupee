@@ -42,7 +42,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   const [successSaved, setSuccessSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const transferableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
+  const transferableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings' && a.type !== 'spending');
 
   useEffect(() => {
     if (isOpen) {
@@ -56,15 +56,15 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       if (initialFromAccountId) {
         setFromAccountId(initialFromAccountId);
       } else {
-        const spending = transferableAccounts.find(a => a.type === 'spending');
-        setFromAccountId(spending ? spending.id : transferableAccounts[0]?.id || '');
+        const bank = transferableAccounts.find(a => a.type === 'bank');
+        setFromAccountId(bank ? bank.id : transferableAccounts[0]?.id || '');
       }
 
       if (initialToAccountId) {
         setToAccountId(initialToAccountId);
       } else {
-        const petrol = transferableAccounts.find(a => a.type === 'petrol');
-        setToAccountId(petrol ? petrol.id : transferableAccounts[1]?.id || '');
+        const cash = transferableAccounts.find(a => a.type === 'cash');
+        setToAccountId(cash ? cash.id : transferableAccounts[1]?.id || '');
       }
     }
   }, [isOpen, initialFromAccountId, initialToAccountId, accounts]);

@@ -81,17 +81,15 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       const defaultCat = expenseCats[0]?.id || '';
       setSelectedCategoryId(defaultCat);
 
-      // Default account
-      const spendableAccounts = accounts.filter(a => a.type !== 'savings' && a.type !== 'archived_savings');
-      if (preselectedAccountId) {
+      // Default account: strictly only real deductible money accounts (Bank Account and Cash)
+      const spendableAccounts = accounts.filter(
+        a => a.type !== 'savings' && a.type !== 'archived_savings' && a.type !== 'spending'
+      );
+      if (preselectedAccountId && spendableAccounts.some(a => a.id === preselectedAccountId)) {
         setSelectedAccountId(preselectedAccountId);
-        const acc = spendableAccounts.find(a => a.id === preselectedAccountId);
-        if (acc?.type === 'petrol') {
-          setIsPetrolCategory(true);
-        }
       } else {
-        const spendingAcc = spendableAccounts.find(a => a.type === 'spending');
-        setSelectedAccountId(spendingAcc ? spendingAcc.id : spendableAccounts[0]?.id || '');
+        const bankAcc = spendableAccounts.find(a => a.type === 'bank');
+        setSelectedAccountId(bankAcc ? bankAcc.id : spendableAccounts[0]?.id || '');
       }
     }
   }, [isOpen, preselectedAccountId, accounts, categories]);
@@ -282,7 +280,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {accounts
-                  .filter(a => a.type !== 'savings' && a.type !== 'archived_savings')
+                  .filter(a => a.type !== 'savings' && a.type !== 'archived_savings' && a.type !== 'spending')
                   .map(acc => {
                     const isSelected = selectedAccountId === acc.id;
                     const isPetrol = acc.type === 'petrol';
