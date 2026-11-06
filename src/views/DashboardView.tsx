@@ -101,13 +101,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
               <span className="text-[#D1D5DB]">•</span>
               <span>
-                Personal Spending:{' '}
-                <strong className="text-[#065F46] tabular-nums font-bold">
-                  {formatINR(spendingAccount ? spendingAccount.balance_paise : summary.availableSpendingPaise)}
-                </strong>
-              </span>
-              <span className="text-[#D1D5DB]">•</span>
-              <span>
                 Cash:{' '}
                 <strong className="text-[#059669] tabular-nums font-bold">
                   {formatINR(cashAccount ? cashAccount.balance_paise : summary.availableCashPaise || 0)}

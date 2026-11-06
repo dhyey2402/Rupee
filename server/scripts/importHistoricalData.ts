@@ -138,7 +138,7 @@ export async function runHistoricalImport() {
     let totalIncomePaise = 0;
     const insertIncStmt = db.prepare(`
       INSERT INTO incomes (id, amount_paise, source, date, description, allocated_paise, unallocated_paise, created_at)
-      VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
     `);
     const checkIncStmt = db.prepare('SELECT id FROM incomes WHERE id = ?');
 

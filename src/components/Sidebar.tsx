@@ -193,16 +193,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] font-bold text-[#065F46] pt-1 border-t border-[#EFE8DC]">
-            <span className="flex items-center gap-1.5">
-              <ShoppingBag className="w-3.5 h-3.5 text-[#065F46]" />
-              Personal
-            </span>
-            <span className="tabular-nums text-[#111318]">
-              {formatINR(spendingAvailablePaise)}
-            </span>
-          </div>
-
           <div className="flex items-center justify-between text-[11px] font-bold text-[#047857] pt-1 border-t border-[#EFE8DC]">
             <span className="flex items-center gap-1.5">
               <Banknote className="w-3.5 h-3.5 text-[#059669]" />
